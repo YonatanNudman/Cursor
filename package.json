@@ -1,0 +1,45 @@
+{
+  "name": "slack-session-mcp",
+  "version": "1.0.0",
+  "description": "Slack MCP server using browser session tokens — no Slack app installation required. Workaround for workspaces that have hit their app integration limit.",
+  "main": "dist/server.js",
+  "type": "module",
+  "bin": {
+    "slack-session-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "npx tsx src/server.ts",
+    "verify-tokens": "npx tsx src/extract-tokens.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YonatanNudman/Cursor.git"
+  },
+  "keywords": [
+    "slack",
+    "mcp",
+    "model-context-protocol",
+    "browser-tokens",
+    "xoxc",
+    "no-app"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/YonatanNudman/Cursor/issues"
+  },
+  "homepage": "https://github.com/YonatanNudman/Cursor#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@slack/web-api": "^7.15.0",
+    "dotenv": "^17.3.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}
