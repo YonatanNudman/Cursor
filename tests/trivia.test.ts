@@ -4,9 +4,10 @@ import {
   drawQuestion,
   gradeAnswer,
   orderedChoices,
+  sectionCounts,
   shuffle,
-  triviaAccuracy,
 } from "../src/logic/trivia";
+import { QUESTIONS } from "../src/data/questions";
 import type { TriviaQuestion } from "../src/types";
 
 const questions: TriviaQuestion[] = [
@@ -34,36 +35,42 @@ const questions: TriviaQuestion[] = [
 ];
 
 describe("shuffle", () => {
-  it("can reverse a list with a deterministic rng", () => {
+  it("can rotate a list with a deterministic rng", () => {
     expect(shuffle([1, 2, 3], () => 0)).toEqual([2, 3, 1]);
   });
 });
 
 describe("trivia session", () => {
-  it("filters by category and grades a streak", () => {
-    const session = createTriviaSession(questions, "Science", () => 0);
-    expect(session.remaining.every((q) => q.category === "Science")).toBe(true);
-    const first = drawQuestion(session);
-    expect(first).not.toBeNull();
-    const good = gradeAnswer(session, first!, first!.answer);
-    expect(good.correct).toBe(true);
-    expect(good.points).toBe(100);
-    const second = drawQuestion(session);
-    const better = gradeAnswer(session, second!, second!.answer);
-    expect(better.streak).toBe(2);
-    expect(better.points).toBe(125);
-    expect(triviaAccuracy(session)).toBe(1);
+  it("rotates sections instead of stacking one category", () => {
+    const session = createTriviaSession(questions, () => 0);
+    const first = drawQuestion(session, () => 0);
+    const second = drawQuestion(session, () => 0);
+    expect(first?.category).not.toBe(second?.category);
   });
 
-  it("breaks a streak on a miss", () => {
-    const session = createTriviaSession(questions, "all", () => 0);
-    const question = drawQuestion(session)!;
-    gradeAnswer(session, question, question.answer);
-    const miss = gradeAnswer(session, question, (question.answer + 1) % 4);
-    expect(miss.correct).toBe(false);
+  it("does not repeat an id until the bank is empty", () => {
+    const session = createTriviaSession(questions, () => 0.2);
+    const seen = new Set<string>();
+    for (let i = 0; i < questions.length; i += 1) {
+      const next = drawQuestion(session, () => 0.2);
+      expect(next).not.toBeNull();
+      expect(seen.has(next!.id)).toBe(false);
+      seen.add(next!.id);
+    }
+    expect(seen.size).toBe(questions.length);
+    const again = drawQuestion(session, () => 0.2);
+    expect(again).not.toBeNull();
+  });
+
+  it("grades a streak and a miss", () => {
+    const session = createTriviaSession(questions, () => 0);
+    const first = drawQuestion(session)!;
+    const good = gradeAnswer(session, first, first.answer);
+    expect(good.correct).toBe(true);
+    expect(good.points).toBe(120);
+    const miss = gradeAnswer(session, first, (first.answer + 1) % 4);
     expect(miss.streak).toBe(0);
     expect(miss.points).toBe(0);
-    expect(session.missed).toBe(1);
   });
 });
 
@@ -72,6 +79,23 @@ describe("orderedChoices", () => {
     const question = questions[1]!;
     const drawn = orderedChoices(question, () => 0.2);
     expect(drawn.labels[drawn.answer]).toBe(question.choices[question.answer]);
-    expect(new Set(drawn.labels).size).toBe(4);
+  });
+});
+
+describe("question bank", () => {
+  it("is large, unique, and spread across sections", () => {
+    const ids = QUESTIONS.map((question) => question.id);
+    expect(new Set(ids).size).toBe(QUESTIONS.length);
+    expect(QUESTIONS.length).toBeGreaterThanOrEqual(300);
+    const counts = sectionCounts(QUESTIONS);
+    expect(Object.keys(counts).length).toBeGreaterThanOrEqual(16);
+    for (const [section, count] of Object.entries(counts)) {
+      expect(count, section).toBeGreaterThanOrEqual(16);
+    }
+    for (const question of QUESTIONS) {
+      expect(new Set(question.choices).size).toBe(4);
+      expect(question.answer).toBeGreaterThanOrEqual(0);
+      expect(question.answer).toBeLessThan(4);
+    }
   });
 });

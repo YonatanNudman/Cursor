@@ -1,15 +1,6 @@
-export type Screen =
-  | "home"
-  | "how"
-  | "mix"
-  | "trivia"
-  | "word"
-  | "breaker"
-  | "result";
+export type Screen = "title" | "play" | "result";
 
-export type Mode = "mix" | "trivia" | "word" | "breaker";
-
-export type BrickKind = "hp" | "letter" | "quiz";
+export type BrickKind = "hp" | "quiz";
 
 export type TriviaCategory =
   | "Science"
@@ -23,6 +14,12 @@ export type TriviaCategory =
   | "Tech"
   | "Literature"
   | "Art"
+  | "TV"
+  | "Space"
+  | "Nature"
+  | "Myths"
+  | "Language"
+  | "World"
   | "General";
 
 export interface TriviaQuestion {
@@ -33,10 +30,25 @@ export interface TriviaQuestion {
   answer: 0 | 1 | 2 | 3;
 }
 
-export interface WordEntry {
-  word: string;
-  category: string;
-  difficulty: 1 | 2 | 3;
+export type EffectKind =
+  | "extraLife"
+  | "multiball"
+  | "widePaddle"
+  | "slowBall"
+  | "fireball"
+  | "chipWall"
+  | "tinyPaddle"
+  | "fastBall"
+  | "wobblyBall"
+  | "armorUp"
+  | "dropRow"
+  | "loseLife";
+
+export interface Effect {
+  id: EffectKind;
+  tone: "good" | "bad";
+  headline: string;
+  detail: string;
 }
 
 export interface Brick {
@@ -48,7 +60,6 @@ export interface Brick {
   hp: number;
   maxHp: number;
   kind: BrickKind;
-  letter?: string;
   alive: boolean;
 }
 
@@ -68,21 +79,6 @@ export interface Paddle {
   h: number;
 }
 
-export interface Puzzle {
-  word: string;
-  category: string;
-  guessed: Set<string>;
-  wrong: number;
-  maxWrong: number;
-}
-
-export interface GuessResult {
-  already: boolean;
-  hit: boolean;
-  won: boolean;
-  lost: boolean;
-}
-
 export interface Rect {
   x: number;
   y: number;
@@ -97,18 +93,12 @@ export interface CircleRectHit {
 }
 
 export interface ScoreCard {
-  mode: Mode;
   score: number;
+  wave: number;
+  correct: number;
+  missed: number;
   title: string;
   detail: string;
-  won: boolean;
-}
-
-export interface StoredScores {
-  mix: number;
-  trivia: number;
-  word: number;
-  breaker: number;
 }
 
 export function assertNever(value: never): never {

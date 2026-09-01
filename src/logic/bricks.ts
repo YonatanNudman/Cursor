@@ -1,5 +1,4 @@
 import type { Brick } from "../types";
-import { uniqueLetters } from "./word";
 
 export interface LevelSpec {
   rows: number;
@@ -8,11 +7,9 @@ export interface LevelSpec {
   height: number;
   padding: number;
   offsetY: number;
-  word: string;
-  quizCount: number;
+  quizRatio: number;
   minHp: number;
   maxHp: number;
-  decoys: number;
 }
 
 export interface Rng {
@@ -31,18 +28,27 @@ export function hpForCell(row: number, rows: number, minHp: number, maxHp: numbe
   return Math.min(maxHp, Math.max(minHp, Math.round(bias + jitter)));
 }
 
+export function brickMetrics(spec: Pick<LevelSpec, "rows" | "cols" | "width" | "height" | "padding" | "offsetY">): {
+  brickW: number;
+  brickH: number;
+  gap: number;
+} {
+  const gap = Math.max(4, Math.round(spec.width * 0.012));
+  const brickW = (spec.width - spec.padding * 2 - gap * (spec.cols - 1)) / spec.cols;
+  const brickH = Math.min(32, Math.max(22, (spec.height * 0.4 - spec.offsetY) / spec.rows - gap));
+  return { brickW, brickH, gap };
+}
+
 export function buildLevel(spec: LevelSpec, rng: Rng = Math.random): Brick[] {
-  const { rows, cols, width, height, padding, offsetY, word, quizCount, minHp, maxHp, decoys } = spec;
-  const gap = 6;
-  const brickW = (width - padding * 2 - gap * (cols - 1)) / cols;
-  const brickH = Math.min(28, (height * 0.42 - offsetY) / rows - gap);
+  const { rows, cols, padding, offsetY, quizRatio, minHp, maxHp } = spec;
+  const { brickW, brickH, gap } = brickMetrics(spec);
   const bricks: Brick[] = [];
 
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
       const hp = hpForCell(row, rows, minHp, maxHp, rng);
       bricks.push({
-        id: `b-${row}-${col}`,
+        id: `b-${row}-${col}-${Math.floor(rng() * 1e6)}`,
         x: padding + col * (brickW + gap),
         y: offsetY + row * (brickH + gap),
         w: brickW,
@@ -56,24 +62,7 @@ export function buildLevel(spec: LevelSpec, rng: Rng = Math.random): Brick[] {
   }
 
   const slots = [...bricks];
-  const needed = uniqueLetters(word);
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  const decoyPool = alphabet.filter((letter) => !needed.includes(letter));
-  const lettersToPlace = [
-    ...needed,
-    ...Array.from({ length: Math.min(decoys, decoyPool.length) }, () => takeRandom(decoyPool, rng)),
-  ];
-
-  for (const letter of lettersToPlace) {
-    if (slots.length === 0) break;
-    const brick = takeRandom(slots, rng);
-    brick.kind = "letter";
-    brick.letter = letter;
-    brick.hp = Math.max(1, Math.min(brick.hp, 2));
-    brick.maxHp = brick.hp;
-  }
-
-  const quizzes = Math.min(quizCount, slots.length);
+  const quizzes = Math.min(slots.length - 1, Math.max(3, Math.round(slots.length * quizRatio)));
   for (let i = 0; i < quizzes; i += 1) {
     const brick = takeRandom(slots, rng);
     brick.kind = "quiz";
@@ -101,47 +90,54 @@ export function aliveBricks(bricks: Brick[]): Brick[] {
   return bricks.filter((brick) => brick.alive);
 }
 
-export function stageForCircuit(level: number): {
-  difficulty: 1 | 2 | 3;
-  lives: number;
-  rows: number;
-  cols: number;
-  quizCount: number;
-  minHp: number;
-  maxHp: number;
-  decoys: number;
-} {
-  if (level <= 1) {
-    return { difficulty: 1, lives: 4, rows: 4, cols: 8, quizCount: 2, minHp: 1, maxHp: 2, decoys: 3 };
-  }
-  if (level === 2) {
-    return { difficulty: 1, lives: 4, rows: 5, cols: 9, quizCount: 3, minHp: 1, maxHp: 3, decoys: 4 };
-  }
-  if (level === 3) {
-    return { difficulty: 2, lives: 3, rows: 5, cols: 10, quizCount: 3, minHp: 2, maxHp: 3, decoys: 5 };
-  }
-  if (level === 4) {
-    return { difficulty: 2, lives: 3, rows: 6, cols: 10, quizCount: 4, minHp: 2, maxHp: 4, decoys: 5 };
-  }
-  return { difficulty: 3, lives: 3, rows: 6, cols: 11, quizCount: 4, minHp: 2, maxHp: 5, decoys: 6 };
-}
-
-export function classicBreakerStage(level: number): {
-  rows: number;
-  cols: number;
-  quizCount: number;
-  minHp: number;
-  maxHp: number;
-  lives: number;
-} {
-  const rows = Math.min(7, 3 + level);
-  const cols = Math.min(12, 8 + Math.floor(level / 2));
+export function waveSpec(wave: number, width: number, height: number): LevelSpec {
+  const rows = Math.min(7, 4 + Math.floor((wave - 1) / 2));
+  const cols = width < 420 ? 6 : Math.min(10, 7 + Math.floor((wave - 1) / 3));
   return {
     rows,
     cols,
-    quizCount: 0,
+    width,
+    height,
+    padding: 10,
+    offsetY: 10,
+    quizRatio: Math.min(0.55, 0.38 + wave * 0.02),
     minHp: 1,
-    maxHp: Math.min(5, 1 + level),
-    lives: Math.max(2, 5 - Math.floor((level - 1) / 2)),
+    maxHp: Math.min(5, 1 + Math.ceil(wave / 2)),
   };
+}
+
+export function dropRow(bricks: Brick[], width: number, rng: Rng = Math.random): Brick[] {
+  const sample = aliveBricks(bricks)[0];
+  if (!sample) return bricks;
+  const gap = 6;
+  const drop = sample.h + gap;
+  for (const brick of bricks) {
+    if (brick.alive) brick.y += drop;
+  }
+  const cols = Math.max(4, Math.round((width - 20) / (sample.w + gap)));
+  const brickW = sample.w;
+  const added: Brick[] = [];
+  for (let col = 0; col < cols; col += 1) {
+    const quiz = rng() < 0.45;
+    added.push({
+      id: `drop-${Date.now()}-${col}`,
+      x: 10 + col * (brickW + gap),
+      y: 10,
+      w: brickW,
+      h: sample.h,
+      hp: quiz ? 1 : 2,
+      maxHp: quiz ? 1 : 2,
+      kind: quiz ? "quiz" : "hp",
+      alive: true,
+    });
+  }
+  return [...bricks, ...added];
+}
+
+export function armorBricks(bricks: Brick[]): void {
+  for (const brick of bricks) {
+    if (!brick.alive) continue;
+    brick.hp = Math.min(6, brick.hp + 1);
+    brick.maxHp = Math.max(brick.maxHp, brick.hp);
+  }
 }

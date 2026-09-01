@@ -1,27 +1,17 @@
 import { describe, expect, it } from "vitest";
-import {
-  boardClearBonus,
-  brickPoints,
-  emptyScores,
-  letterPoints,
-  readScores,
-  SCORE_KEY,
-  wordClearBonus,
-  writeScore,
-} from "../src/logic/score";
+import { brickPoints, formatScore, waveClearBonus } from "../src/logic/score";
+import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../src/logic/seen";
 
-describe("point values", () => {
-  it("pays more for thick bricks and useful letters", () => {
-    expect(brickPoints(1, "hp")).toBe(20);
-    expect(brickPoints(3, "letter")).toBeGreaterThan(brickPoints(3, "hp"));
-    expect(letterPoints(true)).toBeGreaterThan(letterPoints(false));
-    expect(wordClearBonus(2, 5)).toBe(250 + 120 + 40);
-    expect(boardClearBonus(3)).toBe(320);
+describe("points", () => {
+  it("pays quiz bricks and later waves more", () => {
+    expect(brickPoints(2, "quiz")).toBeGreaterThan(brickPoints(2, "hp"));
+    expect(waveClearBonus(3, 2)).toBeGreaterThan(waveClearBonus(1, 2));
+    expect(formatScore(1200)).toBe("1,200");
   });
 });
 
-describe("score storage", () => {
-  it("keeps the best score per mode", () => {
+describe("seen store", () => {
+  it("keeps recent ids and prefers fresh questions", () => {
     const memory = new Map<string, string>();
     const storage = {
       getItem: (key: string) => memory.get(key) ?? null,
@@ -29,22 +19,23 @@ describe("score storage", () => {
         memory.set(key, value);
       },
     };
-
-    expect(readScores(null)).toEqual(emptyScores());
-    writeScore(storage, "mix", 400);
-    writeScore(storage, "mix", 120);
-    writeScore(storage, "trivia", 90);
-    const saved = readScores(storage);
-    expect(saved.mix).toBe(400);
-    expect(saved.trivia).toBe(90);
-    expect(memory.get(SCORE_KEY)).toContain("400");
+    rememberSeen(storage, ["a", "b"]);
+    expect(readSeen(storage)).toEqual(["a", "b"]);
+    const pool = [{ id: "a" }, { id: "c" }, { id: "d" }];
+    const fresh = preferFresh(pool, readSeen(storage));
+    expect(fresh.map((item) => item.id)).toEqual(["c", "d", "a"]);
   });
 
-  it("survives broken localStorage payloads", () => {
+  it("keeps the best score", () => {
+    const memory = new Map<string, string>();
     const storage = {
-      getItem: () => "{not-json",
-      setItem: () => undefined,
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
     };
-    expect(readScores(storage)).toEqual(emptyScores());
+    writeBest(storage, 40);
+    writeBest(storage, 12);
+    expect(readBest(storage)).toBe(40);
   });
 });
