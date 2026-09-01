@@ -288,18 +288,37 @@ export class App {
       return ((event.clientX - rect.left) / rect.width) * world.width;
     };
 
+    let pointerId: number | null = null;
+    const release = (): void => {
+      if (pointerId === null) return;
+      try {
+        canvas.releasePointerCapture(pointerId);
+      } catch {
+        /* already released */
+      }
+      pointerId = null;
+    };
+
     const onMove = (event: PointerEvent): void => {
+      if (world.paused) {
+        release();
+        return;
+      }
       event.preventDefault();
       movePaddle(world, pointX(event));
     };
     const onDown = (event: PointerEvent): void => {
+      if (world.paused) return;
       event.preventDefault();
       sound.resume();
       movePaddle(world, pointX(event));
       launchBalls(world);
+      pointerId = event.pointerId;
       canvas.setPointerCapture(event.pointerId);
     };
+    const onUp = (): void => release();
     const onKey = (event: KeyboardEvent): void => {
+      if (world.paused) return;
       if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
         launchBalls(world);
@@ -310,12 +329,15 @@ export class App {
 
     canvas.addEventListener("pointermove", onMove, { passive: false });
     canvas.addEventListener("pointerdown", onDown, { passive: false });
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", scale);
 
     let last = performance.now();
     let raf = 0;
     const tick = (now: number): void => {
+      if (world.paused) release();
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       stepWorld(world, dt, now);
@@ -326,8 +348,11 @@ export class App {
 
     this.stopLoop = () => cancelAnimationFrame(raf);
     this.unbind = () => {
+      release();
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", scale);
     };

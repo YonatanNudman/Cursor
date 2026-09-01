@@ -146,7 +146,7 @@ button {
 
 .stat {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
@@ -296,7 +296,7 @@ canvas {
 }
 
 .ghost.tiny {
-  min-height: 40px;
+  min-height: 44px;
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 8px 14px;
 }
