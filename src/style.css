@@ -390,3 +390,227 @@ canvas {
 .rules {
   margin-top: 14px;
 }
+
+/* ---- Title screen: one decision ---- */
+
+/* Centre the whole stack. Pinning the button to the bottom of a tall phone
+   leaves a dead void above it that reads as a broken layout. */
+.screen.start {
+  justify-content: center;
+  gap: 14px;
+}
+
+.screen.start .actions {
+  margin-top: 0;
+  padding-top: 4px;
+}
+
+.cta {
+  min-height: 68px;
+  font-size: 24px;
+}
+
+.under {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.best-inline {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.link {
+  background: none;
+  border: 0;
+  padding: 6px 2px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--paper);
+}
+
+.options {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+/* ---- Combo ---- */
+
+.combo {
+  display: none;
+}
+
+.combo.on {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 1;
+  animation: combo-pop 260ms ease-out;
+}
+
+.combo b {
+  font-size: 22px;
+  letter-spacing: -0.04em;
+  color: var(--gold);
+}
+
+.combo small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.combo.tier-3 b {
+  color: var(--pink);
+}
+
+.combo.tier-4 b {
+  color: var(--coral);
+}
+
+@keyframes combo-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Floating points ---- */
+
+.pop {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, 0);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  pointer-events: none;
+  animation: pop-rise 900ms ease-out forwards;
+  text-shadow: 0 2px 14px rgba(7, 9, 15, 0.9);
+}
+
+.pop.good {
+  color: var(--mint);
+}
+
+.pop.bad {
+  color: var(--coral);
+}
+
+@keyframes pop-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 18px) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -60px) scale(1);
+  }
+}
+
+/* ---- Streak milestone ---- */
+
+.milestone {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 230, 109, 0.18), transparent 60%);
+  animation: milestone-flash 1000ms ease-out forwards;
+}
+
+.milestone b {
+  font-size: clamp(30px, 11vw, 52px);
+  letter-spacing: -0.05em;
+  color: var(--gold);
+  text-shadow: 0 4px 22px rgba(7, 9, 15, 0.9);
+}
+
+.milestone small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  color: var(--paper);
+}
+
+@keyframes milestone-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+/* ---- The answer you should have picked ---- */
+
+.choice.reveal {
+  border-color: var(--mint);
+  color: var(--mint);
+  background: rgba(92, 255, 195, 0.12);
+  animation: reveal-pulse 520ms ease-out 2;
+}
+
+.choice:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+@keyframes reveal-pulse {
+  50% {
+    box-shadow: 0 0 0 3px rgba(92, 255, 195, 0.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo.on,
+  .pop,
+  .milestone,
+  .choice.reveal {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+
+  .pop {
+    opacity: 1;
+  }
+}

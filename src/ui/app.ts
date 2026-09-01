@@ -12,8 +12,15 @@ import {
 import { sound } from "../audio";
 import { aliveBricks, buildLevel, waveSpec } from "../logic/bricks";
 import { pickEffect } from "../logic/effects";
-import { canQueueQuiz } from "../logic/quiz-gate";
-import { brickPoints, formatScore, waveClearBonus } from "../logic/score";
+import { QUIZ_COOLDOWN_MS, canQueueQuiz } from "../logic/quiz-gate";
+import {
+  brickPoints,
+  formatScore,
+  isMilestone,
+  streakLabel,
+  streakMultiplier,
+  waveClearBonus,
+} from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
 import {
   BALL_STOCKS,
@@ -85,26 +92,36 @@ export class App {
   }
 
   private renderTitle(): void {
-    const screen = el("div", { class: "screen" }, [
-      el("p", { class: "kicker" }, ["One table. Many questions."]),
-      el("h1", { class: "title" }, ["Mind", el("span", {}, ["breaker"])]),
-      el("p", { class: "lede" }, [
-        "Pink question bricks pause the wall. Right answers dump balls and rewrite the table. Wrong ones make it meaner.",
-      ]),
-      el("div", { class: "best" }, [el("small", {}, ["Best run"]), formatScore(this.best)]),
+    // One decision on this screen: play. Everything else is tucked away, because
+    // a first-timer should never have to configure a game before seeing it.
+    const options = el("div", { class: "options", hidden: "hidden" }, [
       this.picker("Speed", SPEEDS, this.settings.speed, (speed) => this.patchSettings({ speed }), (n) => `${n}x`),
       this.picker("Balls in pocket", BALL_STOCKS, this.settings.balls, (balls) => this.patchSettings({ balls })),
       this.picker("Balls on the table", TABLE_BALLS, this.settings.table, (table) => this.patchSettings({ table })),
-      el("div", { class: "rules" }, [
-        el("p", {}, [el("b", {}, ["Pink ?"]), " — trivia. Eighteen sections. No repeats until the bank is empty."]),
-        el("p", {}, [el("b", {}, ["Speed"]), " — 1x is already quick. 4x is a blur. Change it mid-run too."]),
-        el("p", {}, [el("b", {}, ["Balls"]), " — pocket is lives (3–9). Table is 1, 2, or 3 launching together. Right answers dump pairs, triples, and storms."]),
+    ]);
+
+    const toggle = button("link", "Options", () => {
+      options.hidden = !options.hidden;
+      toggle.textContent = options.hidden ? "Options" : "Hide options";
+    });
+
+    const screen = el("div", { class: "screen start" }, [
+      el("h1", { class: "title" }, ["Mind", el("span", {}, ["breaker"])]),
+      el("p", { class: "lede" }, [
+        "Break the wall. Pink bricks ask a question. Get it right and the table turns in your favour.",
       ]),
       el("div", { class: "actions" }, [
-        button("solid", "Play", () => {
+        button("solid cta", "Play", () => {
           sound.resume();
           this.go("play");
         }),
+        el("div", { class: "under" }, [
+          this.best > 0
+            ? el("span", { class: "best-inline" }, [`Best ${formatScore(this.best)}`])
+            : el("span", { class: "best-inline" }, ["Drag to move  ·  tap to launch"]),
+          toggle,
+        ]),
+        options,
       ]),
     ]);
     this.root.append(screen);
@@ -121,6 +138,7 @@ export class App {
     let asking = false;
     let wavePending = false;
     let quizReadyAt = 0;
+    let bricksSinceQuiz = 0;
 
     const hud = this.mountPlay();
     const finish = (title: string, detail: string): void => {
@@ -154,20 +172,24 @@ export class App {
             sound.brick();
             return;
           }
-          score += brickPoints(brick.maxHp, brick.kind) * this.settings.speed;
+          score +=
+            brickPoints(brick.maxHp, brick.kind) *
+            this.settings.speed *
+            streakMultiplier(session.streak);
           hud.score.textContent = formatScore(score);
+          bricksSinceQuiz += 1;
+          sound.break();
           if (brick.kind === "quiz") {
-            sound.break();
-            if (canQueueQuiz(asking, quizQueue.length, performance.now() >= quizReadyAt)) {
-              const question = drawQuestion(session);
+            const ready = performance.now() >= quizReadyAt;
+            if (canQueueQuiz(asking, quizQueue.length, ready, bricksSinceQuiz)) {
+              const question = drawQuestion(session, wave);
               if (question) {
+                bricksSinceQuiz = 0;
                 askedThisRun.push(question.id);
                 quizQueue.push(question);
                 maybeAsk(world);
               }
             }
-          } else {
-            sound.break();
           }
         },
         onBallLost: () => {
@@ -196,15 +218,26 @@ export class App {
       if (!question) return;
       asking = true;
       world.paused = true;
-      showQuiz(hud.board, question, session, world, (correct, effect) => {
+      showQuiz(hud.board, question, session, world, (correct, effect, points) => {
+        const before = score;
+        score += points * this.settings.speed;
         const broken = applyEffect(world, effect, performance.now());
         for (const brick of broken) {
-          score += brickPoints(brick.maxHp, brick.kind) * this.settings.speed;
+          score +=
+            brickPoints(brick.maxHp, brick.kind) *
+            this.settings.speed *
+            streakMultiplier(session.streak);
         }
+        const gained = score - before;
         lives = world.lives;
         paintBalls(hud.balls, lives);
         hud.score.textContent = formatScore(score);
         hud.streak.textContent = String(session.streak);
+        paintCombo(hud.combo, session.streak);
+        if (correct) {
+          floatPoints(hud.board, `+${formatScore(gained)}`, "good");
+          if (isMilestone(session.streak)) celebrate(hud.board, session.streak);
+        }
         if (world.lives <= 0) {
           asking = false;
           finish("The question took the last ball", `${session.correct} right, ${session.missed} wrong.`);
@@ -212,7 +245,7 @@ export class App {
         }
         banner(hud.board, effect.tone, effect.headline, effect.detail, () => {
           asking = false;
-          quizReadyAt = performance.now() + 1600;
+          quizReadyAt = performance.now() + QUIZ_COOLDOWN_MS;
           if (wavePending) {
             finishWave(world);
             return;
@@ -248,11 +281,13 @@ export class App {
     score: HTMLElement;
     wave: HTMLElement;
     streak: HTMLElement;
+    combo: HTMLElement;
     balls: HTMLElement;
   } {
     const score = el("b", {}, ["0"]);
     const wave = el("b", {}, ["1"]);
     const streak = el("b", {}, ["0"]);
+    const combo = el("div", { class: "combo" });
     const balls = el("div", { class: "balls" });
     const canvas = el("canvas");
     const board = el("div", { class: "board" }, [canvas]);
@@ -262,6 +297,7 @@ export class App {
           el("div", { class: "stat" }, ["Score", score]),
           el("div", { class: "stat" }, ["Wave", wave]),
           el("div", { class: "stat" }, ["Streak", streak]),
+          combo,
           balls,
         ]),
         board,
@@ -271,7 +307,7 @@ export class App {
         ]),
       ]),
     );
-    return { board, canvas, score, wave, streak, balls };
+    return { board, canvas, score, wave, streak, combo, balls };
   }
 
   private renderResult(): void {
@@ -458,6 +494,36 @@ function paintBalls(node: HTMLElement, lives: number): void {
   }
 }
 
+function paintCombo(node: HTMLElement, streak: number): void {
+  const multiplier = streakMultiplier(streak);
+  clear(node);
+  if (multiplier <= 1) {
+    node.className = "combo";
+    return;
+  }
+  node.className = `combo on tier-${multiplier}`;
+  node.append(
+    el("b", {}, [`\u00d7${multiplier}`]),
+    el("small", {}, [streakLabel(streak)]),
+  );
+}
+
+/** A number that leaps off the board and fades. Pure reward, no information. */
+function floatPoints(host: HTMLElement, text: string, tone: "good" | "bad"): void {
+  const pop = el("div", { class: `pop ${tone}` }, [text]);
+  host.append(pop);
+  window.setTimeout(() => pop.remove(), 900);
+}
+
+function celebrate(host: HTMLElement, streak: number): void {
+  const flash = el("div", { class: "milestone" }, [
+    el("b", {}, [`${streak} IN A ROW`]),
+    el("small", {}, [streakLabel(streak)]),
+  ]);
+  host.append(flash);
+  window.setTimeout(() => flash.remove(), 1000);
+}
+
 function banner(host: HTMLElement, tone: "good" | "bad", title: string, detail: string, then: () => void): void {
   const overlay = el("div", { class: "overlay" }, [
     el("div", { class: `panel ${tone}` }, [el("h3", {}, [title]), el("p", {}, [detail])]),
@@ -474,19 +540,29 @@ function showQuiz(
   question: TriviaQuestion,
   session: TriviaSession,
   world: BreakerWorld,
-  done: (correct: boolean, effect: Effect) => void,
+  done: (correct: boolean, effect: Effect, points: number) => void,
 ): void {
   const drawn = orderedChoices(question);
   let locked = false;
   let left = 14;
   const bar = el("i");
   const overlay = el("div", { class: "overlay" });
+  const buttons: HTMLButtonElement[] = drawn.labels.map((label, index) => {
+    const btn: HTMLButtonElement = button("choice", label, () => finish(index, btn));
+    return btn;
+  });
   const finish = (choice: number, btn?: HTMLButtonElement): void => {
     if (locked) return;
     locked = true;
     window.clearInterval(timer);
     const result = gradeAnswer(session, { ...question, answer: drawn.answer }, choice);
     if (btn) btn.classList.add(result.correct ? "good" : "bad");
+    // Always show which one was right. Being punished without being told the
+    // answer is the least satisfying way to lose a question.
+    if (!result.correct) {
+      buttons[drawn.answer]?.classList.add("reveal");
+    }
+    for (const other of buttons) other.disabled = true;
     if (result.correct) sound.correct();
     else sound.wrong();
     const now = performance.now();
@@ -497,22 +573,20 @@ function showQuiz(
       alreadyWobbly: now < world.wobbleUntil,
       alreadyFireball: now < world.fireballUntil,
     });
-    window.setTimeout(() => {
-      overlay.remove();
-      done(result.correct, effect);
-    }, 420);
+    window.setTimeout(
+      () => {
+        overlay.remove();
+        done(result.correct, effect, result.points);
+      },
+      result.correct ? 420 : 1150,
+    );
   };
 
   overlay.append(
     el("div", { class: "panel" }, [
       el("p", { class: "meta" }, [`${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}`]),
       el("h2", {}, [question.question]),
-      el("div", { class: "choices" },
-        drawn.labels.map((label, index) => {
-          const btn = button("choice", label, () => finish(index, btn));
-          return btn;
-        }),
-      ),
+      el("div", { class: "choices" }, buttons),
       el("div", { class: "timer" }, [bar]),
     ]),
   );

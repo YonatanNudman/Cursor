@@ -39,3 +39,18 @@ describe("seen store", () => {
     expect(readBest(storage)).toBe(40);
   });
 });
+
+describe("streak rewards", () => {
+  it("climbs in steps and resets clean", async () => {
+    const { streakMultiplier, streakLabel, isMilestone } = await import("../src/logic/score");
+    expect(streakMultiplier(0)).toBe(1);
+    expect(streakMultiplier(3)).toBe(2);
+    expect(streakMultiplier(5)).toBe(3);
+    expect(streakMultiplier(8)).toBe(4);
+    expect(streakLabel(0)).toBe("");
+    expect(streakLabel(5)).toBe("ON FIRE");
+    expect(isMilestone(3)).toBe(true);
+    expect(isMilestone(4)).toBe(false);
+    expect(isMilestone(10)).toBe(true);
+  });
+});

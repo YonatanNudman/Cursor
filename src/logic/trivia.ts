@@ -1,4 +1,4 @@
-import type { TriviaCategory, TriviaQuestion } from "../types";
+import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
 
 export interface TriviaSession {
   remaining: TriviaQuestion[];
@@ -36,8 +36,22 @@ export function createTriviaSession(
   };
 }
 
+/**
+ * The wall gets harder every wave, so the questions should too. Early waves stay
+ * on warm-ups, the middle mixes, and the deep waves stop being polite. Returning
+ * a widening list rather than one tier means a thin bank still finds something.
+ */
+export function tiersForWave(wave: number): Difficulty[] {
+  if (wave <= 2) return [1];
+  if (wave <= 4) return [1, 2];
+  if (wave <= 7) return [2, 1, 3];
+  if (wave <= 10) return [2, 3];
+  return [3, 2];
+}
+
 export function drawQuestion(
   session: TriviaSession,
+  wave = 1,
   rng: () => number = Math.random,
 ): TriviaQuestion | null {
   if (session.remaining.length === 0) {
@@ -51,14 +65,26 @@ export function drawQuestion(
     }
   }
 
+  // Prefer the wave's tier, then fall back through the rest so the draw never
+  // comes up empty just because one tier is exhausted.
+  const tiers = tiersForWave(wave);
+  let tiered = session.remaining;
+  for (const tier of tiers) {
+    const match = session.remaining.filter((question) => question.difficulty === tier);
+    if (match.length > 0) {
+      tiered = match;
+      break;
+    }
+  }
+
   const counts = session.askedByCategory;
   let best = Infinity;
-  for (const question of session.remaining) {
+  for (const question of tiered) {
     const count = counts[question.category] ?? 0;
     if (count < best) best = count;
   }
-  const pool = session.remaining.filter((question) => (counts[question.category] ?? 0) === best);
-  const pick = pool[Math.floor(rng() * pool.length)] ?? session.remaining[0];
+  const pool = tiered.filter((question) => (counts[question.category] ?? 0) === best);
+  const pick = pool[Math.floor(rng() * pool.length)] ?? tiered[0] ?? session.remaining[0];
   if (!pick) return null;
 
   session.remaining = session.remaining.filter((question) => question.id !== pick.id);

@@ -100,7 +100,7 @@ export function waveSpec(wave: number, width: number, height: number): LevelSpec
     height,
     padding: 10,
     offsetY: 10,
-    quizRatio: Math.min(0.55, 0.38 + wave * 0.02),
+    quizRatio: Math.min(0.36, 0.24 + wave * 0.014),
     minHp: 1,
     maxHp: Math.min(5, 1 + Math.ceil(wave / 2)),
   };

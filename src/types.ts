@@ -22,12 +22,16 @@ export type TriviaCategory =
   | "World"
   | "General";
 
+/** 1 is a warm-up, 2 needs a moment, 3 is for the deep waves. */
+export type Difficulty = 1 | 2 | 3;
+
 export interface TriviaQuestion {
   id: string;
   category: TriviaCategory;
   question: string;
   choices: [string, string, string, string];
   answer: 0 | 1 | 2 | 3;
+  difficulty: Difficulty;
 }
 
 export type EffectKind =

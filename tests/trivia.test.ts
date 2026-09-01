@@ -17,6 +17,7 @@ const questions: TriviaQuestion[] = [
     question: "A?",
     choices: ["1", "2", "3", "4"],
     answer: 0,
+    difficulty: 1,
   },
   {
     id: "b",
@@ -24,6 +25,7 @@ const questions: TriviaQuestion[] = [
     question: "B?",
     choices: ["1", "2", "3", "4"],
     answer: 2,
+    difficulty: 1,
   },
   {
     id: "c",
@@ -31,6 +33,7 @@ const questions: TriviaQuestion[] = [
     question: "C?",
     choices: ["1", "2", "3", "4"],
     answer: 1,
+    difficulty: 1,
   },
 ];
 
@@ -43,8 +46,8 @@ describe("shuffle", () => {
 describe("trivia session", () => {
   it("rotates sections instead of stacking one category", () => {
     const session = createTriviaSession(questions, () => 0);
-    const first = drawQuestion(session, () => 0);
-    const second = drawQuestion(session, () => 0);
+    const first = drawQuestion(session, 1, () => 0);
+    const second = drawQuestion(session, 1, () => 0);
     expect(first?.category).not.toBe(second?.category);
   });
 
@@ -52,13 +55,13 @@ describe("trivia session", () => {
     const session = createTriviaSession(questions, () => 0.2);
     const seen = new Set<string>();
     for (let i = 0; i < questions.length; i += 1) {
-      const next = drawQuestion(session, () => 0.2);
+      const next = drawQuestion(session, 1, () => 0.2);
       expect(next).not.toBeNull();
       expect(seen.has(next!.id)).toBe(false);
       seen.add(next!.id);
     }
     expect(seen.size).toBe(questions.length);
-    const again = drawQuestion(session, () => 0.2);
+    const again = drawQuestion(session, 1, () => 0.2);
     expect(again).not.toBeNull();
   });
 
@@ -96,6 +99,29 @@ describe("question bank", () => {
       expect(new Set(question.choices).size).toBe(4);
       expect(question.answer).toBeGreaterThanOrEqual(0);
       expect(question.answer).toBeLessThan(4);
+      expect([1, 2, 3]).toContain(question.difficulty);
     }
+    const texts = QUESTIONS.map((question) => question.question.trim().toLowerCase());
+    expect(new Set(texts).size, "duplicate question text").toBe(texts.length);
+    for (const tier of [1, 2, 3] as const) {
+      const inTier = QUESTIONS.filter((question) => question.difficulty === tier);
+      expect(inTier.length, `tier ${tier}`).toBeGreaterThanOrEqual(40);
+    }
+  });
+});
+
+describe("difficulty by wave", () => {
+  it("warms up early and bites later", async () => {
+    const { tiersForWave } = await import("../src/logic/trivia");
+    expect(tiersForWave(1)[0]).toBe(1);
+    expect(tiersForWave(12)[0]).toBe(3);
+  });
+
+  it("draws an easy question on wave 1 and a hard one deep in a run", () => {
+    const bank = QUESTIONS;
+    const early = createTriviaSession(bank, () => 0.3);
+    expect(drawQuestion(early, 1, () => 0.3)?.difficulty).toBe(1);
+    const late = createTriviaSession(bank, () => 0.3);
+    expect(drawQuestion(late, 12, () => 0.3)?.difficulty).toBe(3);
   });
 });

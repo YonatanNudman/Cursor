@@ -2,9 +2,14 @@
 
 One game. You break bricks. Pink `?` bricks stop the table and ask a question. A right answer changes the board — extra balls, a wider paddle, slow-mo, a fireball, or a chip through the wall. A wrong answer makes it meaner.
 
-Hundreds of questions across eighteen sections. A run will not repeat a question until that bank is empty. Recent questions stay out of the next run too.
+648 questions across eighteen sections, each tagged easy, medium, or hard. Early
+waves ask warm-ups and the deep waves stop being polite. A run will not repeat a
+question until that bank is empty, and recent questions stay out of the next run.
 
-Built to play on a phone: drag to aim, tap to launch.
+Answer streaks pay a multiplier that rides along on every brick you break, so a
+hot run visibly snowballs. Miss one and the game shows you the right answer.
+
+Built to play on a phone: drag to move, tap to launch. No setup screen, just Play.
 
 ## Play on your phone
 
