@@ -7,5 +7,6 @@ describe("canQueueQuiz", () => {
     expect(canQueueQuiz(true, 0)).toBe(false);
     expect(canQueueQuiz(false, 1)).toBe(false);
     expect(canQueueQuiz(true, 3)).toBe(false);
+    expect(canQueueQuiz(false, 0, false)).toBe(false);
   });
 });

@@ -1,3 +1,3 @@
-export function canQueueQuiz(asking: boolean, queued: number): boolean {
-  return !asking && queued === 0;
+export function canQueueQuiz(asking: boolean, queued: number, ready = true): boolean {
+  return !asking && queued === 0 && ready;
 }

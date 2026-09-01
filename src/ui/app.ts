@@ -120,6 +120,7 @@ export class App {
     const quizQueue: TriviaQuestion[] = [];
     let asking = false;
     let wavePending = false;
+    let quizReadyAt = 0;
 
     const hud = this.mountPlay();
     const finish = (title: string, detail: string): void => {
@@ -157,7 +158,7 @@ export class App {
           hud.score.textContent = formatScore(score);
           if (brick.kind === "quiz") {
             sound.break();
-            if (canQueueQuiz(asking, quizQueue.length)) {
+            if (canQueueQuiz(asking, quizQueue.length, performance.now() >= quizReadyAt)) {
               const question = drawQuestion(session);
               if (question) {
                 askedThisRun.push(question.id);
@@ -211,6 +212,7 @@ export class App {
         }
         banner(hud.board, effect.tone, effect.headline, effect.detail, () => {
           asking = false;
+          quizReadyAt = performance.now() + 1600;
           if (wavePending) {
             finishWave(world);
             return;
