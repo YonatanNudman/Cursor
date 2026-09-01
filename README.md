@@ -13,31 +13,15 @@ Built to play on a phone: drag to move, tap to launch. No setup screen, just Pla
 
 ## Play on your phone
 
-### Share this now, no account needed
-
-**https://raw.githack.com/YonatanNudman/Cursor/main/docs/index.html**
-
-This repository is public, so that link serves `docs/` straight from the `main`
-branch to anyone, with no sign-in. It follows the branch rather than a pinned
-commit, so pushing a new build to `main` updates it.
-
-### The permanent link, one switch away
-
-Pages is not enabled yet, and only a repository admin can turn it on the first
-time. The Actions token is not allowed to, which is why the Pages workflow stops
-at `Create Pages site failed: Resource not accessible by integration`.
-
-To finish it, in this repository go to **Settings, then Pages**, and set
-**Source** to **GitHub Actions**. Do not pick "Deploy from a branch", the
-workflow handles it.
-
-That is the whole setup. The next push to `main` publishes to:
-
 **https://yonatannudman.github.io/Cursor/**
 
-which is permanent, public, needs no account, and rebuilds itself on every push
-from then on. To publish immediately after flipping the switch, run the **Pages**
-workflow from the Actions tab.
+Public, permanent, and no account needed. Every push to `main` rebuilds and
+redeploys it, so the link never changes and never goes stale.
+
+A mirror that serves the same build straight from the branch, useful if Pages is
+ever mid-deploy:
+
+`https://raw.githack.com/YonatanNudman/Cursor/main/docs/index.html`
 
 ## Play locally
 
