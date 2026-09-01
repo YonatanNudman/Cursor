@@ -37,11 +37,20 @@ button {
 }
 
 .screen {
-  min-height: 100dvh;
+  height: 100%;
+  max-height: 100dvh;
   padding: calc(20px + var(--safe-top)) 18px calc(22px + var(--safe-bottom));
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Children keep their natural height so the screen scrolls instead of
+   compressing them on short viewports. */
+.screen > * {
+  flex-shrink: 0;
 }
 
 .kicker {
@@ -131,7 +140,8 @@ button {
 }
 
 .play {
-  min-height: 100dvh;
+  height: 100%;
+  max-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: calc(10px + var(--safe-top)) 10px calc(10px + var(--safe-bottom));
