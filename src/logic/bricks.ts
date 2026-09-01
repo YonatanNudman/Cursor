@@ -35,7 +35,7 @@ export function brickMetrics(spec: Pick<LevelSpec, "rows" | "cols" | "width" | "
 } {
   const gap = Math.max(4, Math.round(spec.width * 0.012));
   const brickW = (spec.width - spec.padding * 2 - gap * (spec.cols - 1)) / spec.cols;
-  const brickH = Math.min(32, Math.max(22, (spec.height * 0.4 - spec.offsetY) / spec.rows - gap));
+  const brickH = Math.min(38, Math.max(22, (spec.height * 0.52 - spec.offsetY) / spec.rows - gap));
   return { brickW, brickH, gap };
 }
 
@@ -91,7 +91,7 @@ export function aliveBricks(bricks: Brick[]): Brick[] {
 }
 
 export function waveSpec(wave: number, width: number, height: number): LevelSpec {
-  const rows = Math.min(7, 4 + Math.floor((wave - 1) / 2));
+  const rows = Math.min(9, 5 + Math.floor((wave - 1) / 2));
   const cols = width < 420 ? 6 : Math.min(10, 7 + Math.floor((wave - 1) / 3));
   return {
     rows,

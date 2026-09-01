@@ -391,20 +391,6 @@ canvas {
   margin-top: 14px;
 }
 
-/* ---- Title screen: one decision ---- */
-
-/* Centre the whole stack. Pinning the button to the bottom of a tall phone
-   leaves a dead void above it that reads as a broken layout. */
-.screen.start {
-  justify-content: center;
-  gap: 14px;
-}
-
-.screen.start .actions {
-  margin-top: 0;
-  padding-top: 4px;
-}
-
 .cta {
   min-height: 68px;
   font-size: 24px;
@@ -612,5 +598,143 @@ canvas {
 
   .pop {
     opacity: 1;
+  }
+}
+
+/* ---- Difficulty, chosen where it matters ---- */
+
+.levels {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+.level {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  min-height: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--paper);
+}
+
+.level b {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.level small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.level.on {
+  border-color: var(--mint);
+  background: rgba(92, 255, 195, 0.1);
+}
+
+.level.on b {
+  color: var(--mint);
+}
+
+.level-tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- Result tally ---- */
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.tally-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tally-cell small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tally-cell b {
+  font-size: 19px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel .note {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+/* ---- First-run coaching, not a setup screen ---- */
+
+.coach {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(16, 20, 40, 0.92);
+  pointer-events: none;
+  text-align: center;
+  animation: coach-in 300ms ease-out;
+}
+
+.coach b {
+  font-size: 16px;
+}
+
+.coach small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+@keyframes coach-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach {
+    animation-duration: 1ms;
   }
 }

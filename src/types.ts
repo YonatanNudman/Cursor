@@ -1,4 +1,4 @@
-export type Screen = "title" | "play" | "result";
+export type Screen = "play" | "result";
 
 export type BrickKind = "hp" | "quiz";
 

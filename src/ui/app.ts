@@ -1,7 +1,10 @@
 import { QUESTIONS } from "../data/questions";
 import {
+  AIM_UP,
+  aimAt,
   applyEffect,
   attachHooks,
+  clearAim,
   createWorld,
   drawWorld,
   launchBalls,
@@ -22,15 +25,13 @@ import {
   waveClearBonus,
 } from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
+import { readSettings, writeSettings, type RunSettings } from "../logic/settings";
 import {
-  BALL_STOCKS,
-  SPEEDS,
-  TABLE_BALLS,
-  readSettings,
-  writeSettings,
-  type RunSettings,
-  type SpeedMult,
-} from "../logic/settings";
+  allDifficulties,
+  difficulty,
+  type DifficultyName,
+  type DifficultyPreset,
+} from "../logic/difficulty";
 import {
   createTriviaSession,
   drawQuestion,
@@ -41,6 +42,8 @@ import {
 import { assertNever, type Effect, type ScoreCard, type Screen, type TriviaQuestion } from "../types";
 import { clear, el } from "./html";
 
+const COACHED_KEY = "mindbreaker.coached";
+
 const HOSTS = [
   "The wall wants a word with you.",
   "Pop quiz from a broken brick.",
@@ -50,12 +53,16 @@ const HOSTS = [
 ];
 
 export class App {
-  private screen: Screen = "title";
+  private screen: Screen = "play";
   private best = readBest(window.localStorage);
   private settings: RunSettings = readSettings(window.localStorage);
   private result: ScoreCard | null = null;
   private stopLoop: (() => void) | null = null;
   private unbind: (() => void) | null = null;
+  private world: BreakerWorld | null = null;
+  private boardHost: HTMLElement | null = null;
+  private paused = false;
+  private asking = false;
 
   constructor(private readonly root: HTMLElement) {
     this.render();
@@ -68,6 +75,10 @@ export class App {
   }
 
   private teardown(): void {
+    this.world = null;
+    this.boardHost = null;
+    this.paused = false;
+    this.asking = false;
     this.stopLoop?.();
     this.stopLoop = null;
     this.unbind?.();
@@ -77,9 +88,6 @@ export class App {
   private render(): void {
     clear(this.root);
     switch (this.screen) {
-      case "title":
-        this.renderTitle();
-        break;
       case "play":
         this.playRun();
         break;
@@ -91,46 +99,15 @@ export class App {
     }
   }
 
-  private renderTitle(): void {
-    // One decision on this screen: play. Everything else is tucked away, because
-    // a first-timer should never have to configure a game before seeing it.
-    const options = el("div", { class: "options", hidden: "hidden" }, [
-      this.picker("Speed", SPEEDS, this.settings.speed, (speed) => this.patchSettings({ speed }), (n) => `${n}x`),
-      this.picker("Balls in pocket", BALL_STOCKS, this.settings.balls, (balls) => this.patchSettings({ balls })),
-      this.picker("Balls on the table", TABLE_BALLS, this.settings.table, (table) => this.patchSettings({ table })),
-    ]);
-
-    const toggle = button("link", "Options", () => {
-      options.hidden = !options.hidden;
-      toggle.textContent = options.hidden ? "Options" : "Hide options";
-    });
-
-    const screen = el("div", { class: "screen start" }, [
-      el("h1", { class: "title" }, ["Mind", el("span", {}, ["breaker"])]),
-      el("p", { class: "lede" }, [
-        "Break the wall. Pink bricks ask a question. Get it right and the table turns in your favour.",
-      ]),
-      el("div", { class: "actions" }, [
-        button("solid cta", "Play", () => {
-          sound.resume();
-          this.go("play");
-        }),
-        el("div", { class: "under" }, [
-          this.best > 0
-            ? el("span", { class: "best-inline" }, [`Best ${formatScore(this.best)}`])
-            : el("span", { class: "best-inline" }, ["Drag to move  ·  tap to launch"]),
-          toggle,
-        ]),
-        options,
-      ]),
-    ]);
-    this.root.append(screen);
+  private preset(): DifficultyPreset {
+    return difficulty(this.settings.difficulty);
   }
 
   private playRun(): void {
+    const preset = this.preset();
     let wave = 1;
     let score = 0;
-    let lives: number = this.settings.balls;
+    let lives: number = preset.lives;
     let settled = false;
     const session = createTriviaSession(preferFresh(QUESTIONS, readSeen(window.localStorage)));
     const askedThisRun: string[] = [];
@@ -165,7 +142,7 @@ export class App {
       const height = Math.max(360, Math.floor(frame.height));
       const spec = waveSpec(wave, width, height);
       const world = attachHooks(
-        createWorld(width, height, buildLevel(spec), lives, 6.1 + wave * 0.32, this.settings.table),
+        createWorld(width, height, buildLevel(spec), lives, (5.4 + wave * 0.3) * preset.ballSpeed, preset.tableBalls),
         {
         onBrickHit: (brick, broke) => {
           if (!broke) {
@@ -174,7 +151,7 @@ export class App {
           }
           score +=
             brickPoints(brick.maxHp, brick.kind) *
-            this.settings.speed *
+            preset.weight *
             streakMultiplier(session.streak);
           hud.score.textContent = formatScore(score);
           bricksSinceQuiz += 1;
@@ -207,9 +184,10 @@ export class App {
         },
       });
       lives = world.lives;
+      this.world = world;
       paintBalls(hud.balls, lives);
       hud.wave.textContent = String(wave);
-      this.bindBreaker(hud.canvas, hud.board, world, () => this.settings.speed);
+      this.bindBreaker(hud.canvas, hud.board, world);
     };
 
     const maybeAsk = (world: BreakerWorld): void => {
@@ -217,15 +195,16 @@ export class App {
       const question = quizQueue.shift();
       if (!question) return;
       asking = true;
+      this.asking = true;
       world.paused = true;
       showQuiz(hud.board, question, session, world, (correct, effect, points) => {
         const before = score;
-        score += points * this.settings.speed;
+        score += points * preset.weight;
         const broken = applyEffect(world, effect, performance.now());
         for (const brick of broken) {
           score +=
             brickPoints(brick.maxHp, brick.kind) *
-            this.settings.speed *
+            preset.weight *
             streakMultiplier(session.streak);
         }
         const gained = score - before;
@@ -240,17 +219,19 @@ export class App {
         }
         if (world.lives <= 0) {
           asking = false;
+          this.asking = false;
           finish("The question took the last ball", `${session.correct} right, ${session.missed} wrong.`);
           return;
         }
         banner(hud.board, effect.tone, effect.headline, effect.detail, () => {
           asking = false;
+          this.asking = false;
           quizReadyAt = performance.now() + QUIZ_COOLDOWN_MS;
           if (wavePending) {
             finishWave(world);
             return;
           }
-          world.paused = false;
+          if (!this.paused) world.paused = false;
           maybeAsk(world);
         });
         void correct;
@@ -261,8 +242,8 @@ export class App {
       if (!wavePending || asking) return;
       wavePending = false;
       quizQueue.length = 0;
-      score += waveClearBonus(wave, world.lives) * this.settings.speed;
-      lives = Math.min(12, world.lives + 1);
+      score += waveClearBonus(wave, world.lives) * preset.weight;
+      lives = preset.lifePerWave ? Math.min(12, world.lives + 1) : world.lives;
       sound.win();
       wave += 1;
       hud.wave.textContent = String(wave);
@@ -273,6 +254,24 @@ export class App {
     };
 
     startWave();
+
+    if (!localStorage.getItem(COACHED_KEY)) {
+      const hint = el("div", { class: "coach" }, [
+        el("b", {}, ["Hold to aim"]),
+        el("small", {}, ["Release to fire. Then drag to move the paddle."]),
+      ]);
+      hud.board.append(hint);
+      const dismiss = (): void => {
+        hint.remove();
+        try {
+          localStorage.setItem(COACHED_KEY, "1");
+        } catch {
+          /* private mode, show it again next time */
+        }
+      };
+      hud.board.addEventListener("pointerdown", dismiss, { once: true });
+      window.setTimeout(dismiss, 6000);
+    }
   }
 
   private mountPlay(): {
@@ -291,6 +290,7 @@ export class App {
     const balls = el("div", { class: "balls" });
     const canvas = el("canvas");
     const board = el("div", { class: "board" }, [canvas]);
+    this.boardHost = board;
     this.root.append(
       el("div", { class: "play" }, [
         el("div", { class: "hud" }, [
@@ -302,8 +302,8 @@ export class App {
         ]),
         board,
         el("div", { class: "foot" }, [
-          this.speedBar(),
-          button("ghost tiny", "Quit", () => this.go("title")),
+          el("span", { class: "level-tag" }, [this.preset().label]),
+          button("ghost tiny", "Pause", () => this.openPause()),
         ]),
       ]),
     );
@@ -313,22 +313,78 @@ export class App {
   private renderResult(): void {
     const card = this.result;
     if (!card) {
-      this.go("title");
+      this.go("play");
       return;
     }
+    const asked = card.correct + card.missed;
+    const accuracy = asked > 0 ? Math.round((card.correct / asked) * 100) : 0;
+    const beat = card.score >= this.best && card.score > 0;
     this.root.append(
       el("div", { class: "screen result" }, [
-        el("p", { class: "kicker" }, [card.missed + card.correct > 0 ? "Table over" : "Walked away"]),
+        el("p", { class: "kicker" }, [beat ? "New best" : "Run over"]),
         el("h2", {}, [card.title]),
         el("p", {}, [card.detail]),
         el("p", { class: "big" }, [formatScore(card.score)]),
-        el("p", { class: "kicker" }, [`Best ${formatScore(this.best)}  ·  wave ${card.wave}`]),
+        el("div", { class: "tally" }, [
+          stat("Wave", String(card.wave)),
+          stat("Right", String(card.correct)),
+          stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
+          stat("Best", formatScore(this.best)),
+        ]),
+        this.levelPicker(),
         el("div", { class: "actions" }, [
-          button("solid", "One more run", () => this.go("play")),
-          button("ghost", "Home", () => this.go("title")),
+          button("solid cta", "Play again", () => this.go("play")),
         ]),
       ]),
     );
+  }
+
+  /** Difficulty lives where you actually choose it: after a loss, and on pause. */
+  private levelPicker(): HTMLElement {
+    const row = el("div", { class: "levels" });
+    const paint = (): void => {
+      clear(row);
+      for (const level of allDifficulties()) {
+        const on = level.name === this.settings.difficulty;
+        const chip = button(on ? "level on" : "level", "", () => {
+          this.patchSettings({ difficulty: level.name });
+          paint();
+        });
+        chip.append(el("b", {}, [level.label]), el("small", {}, [level.blurb]));
+        row.append(chip);
+      }
+    };
+    paint();
+    return row;
+  }
+
+  private openPause(): void {
+    const world = this.world;
+    if (!world || this.paused) return;
+    this.paused = true;
+    world.paused = true;
+    const overlay = el("div", { class: "overlay" });
+    const close = (): void => {
+      overlay.remove();
+      this.paused = false;
+      if (!this.asking) world.paused = false;
+    };
+    overlay.append(
+      el("div", { class: "panel" }, [
+        el("h3", {}, ["Paused"]),
+        this.levelPicker(),
+        el("p", { class: "note" }, ["Changing the level starts a fresh run."]),
+        el("div", { class: "actions" }, [
+          button("solid", "Resume", close),
+          button("ghost", "Restart", () => {
+            overlay.remove();
+            this.paused = false;
+            this.go("play");
+          }),
+        ]),
+      ]),
+    );
+    this.boardHost?.append(overlay);
   }
 
   private patchSettings(partial: Partial<RunSettings>): void {
@@ -360,28 +416,10 @@ export class App {
     return row;
   }
 
-  private speedBar(): HTMLElement {
-    const bar = el("div", { class: "chips" });
-    const paint = (): void => {
-      clear(bar);
-      for (const speed of SPEEDS) {
-        bar.append(
-          button(speed === this.settings.speed ? "chip on" : "chip", `${speed}x`, () => {
-            this.patchSettings({ speed });
-            paint();
-          }),
-        );
-      }
-    };
-    paint();
-    return bar;
-  }
-
   private bindBreaker(
     canvas: HTMLCanvasElement,
     board: HTMLElement,
     world: BreakerWorld,
-    speedOf: () => SpeedMult,
   ): void {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -399,6 +437,10 @@ export class App {
       const rect = canvas.getBoundingClientRect();
       return ((event.clientX - rect.left) / rect.width) * world.width;
     };
+    const pointY = (event: PointerEvent): number => {
+      const rect = canvas.getBoundingClientRect();
+      return ((event.clientY - rect.top) / rect.height) * world.height;
+    };
 
     let pointerId: number | null = null;
     const release = (): void => {
@@ -411,24 +453,58 @@ export class App {
       pointerId = null;
     };
 
+    // Two gestures on one surface, decided by whether a ball is waiting. Holding
+    // with a ball on the paddle draws a shot and releasing fires it; once the
+    // ball is loose the same drag steers the paddle.
+    let aiming = false;
+
     const onMove = (event: PointerEvent): void => {
       if (world.paused) {
         release();
         return;
       }
       event.preventDefault();
+      if (aiming) {
+        aimAt(world, pointX(event), pointY(event));
+        return;
+      }
       movePaddle(world, pointX(event));
     };
+
     const onDown = (event: PointerEvent): void => {
       if (world.paused) return;
       event.preventDefault();
       sound.resume();
-      movePaddle(world, pointX(event));
-      launchBalls(world);
       pointerId = event.pointerId;
       canvas.setPointerCapture(event.pointerId);
+      if (world.balls.some((ball) => ball.stuck)) {
+        aiming = true;
+        aimAt(world, pointX(event), pointY(event));
+        return;
+      }
+      movePaddle(world, pointX(event));
     };
-    const onUp = (): void => release();
+
+    const onUp = (): void => {
+      if (aiming) {
+        aiming = false;
+        if (world.aim === null) {
+          // A tap with no drag still fires, straight up.
+          launchBalls(world, AIM_UP);
+        } else {
+          launchBalls(world);
+        }
+        sound.resume();
+      }
+      release();
+    };
+
+    const onCancel = (): void => {
+      aiming = false;
+      clearAim(world);
+      release();
+    };
+
     const onKey = (event: KeyboardEvent): void => {
       if (world.paused) return;
       if (event.key === " " || event.key === "Enter") {
@@ -442,7 +518,7 @@ export class App {
     canvas.addEventListener("pointermove", onMove, { passive: false });
     canvas.addEventListener("pointerdown", onDown, { passive: false });
     canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", scale);
 
@@ -450,11 +526,12 @@ export class App {
     let raf = 0;
     const tick = (now: number): void => {
       if (world.paused) release();
-      const raw = Math.min(0.033, (now - last) / 1000);
+      // Real time. Difficulty changes how fast the ball is, not how fast the
+      // clock runs, so physics stays stable at every level.
+      const frame = Math.min(0.033, (now - last) / 1000);
       last = now;
-      const scaled = raw * speedOf();
-      const steps = Math.max(1, Math.ceil(scaled / 0.016));
-      const slice = scaled / steps;
+      const steps = Math.max(1, Math.ceil(frame / 0.016));
+      const slice = frame / steps;
       for (let i = 0; i < steps; i += 1) {
         stepWorld(world, slice, now);
       }
@@ -469,11 +546,15 @@ export class App {
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointerup", onUp);
-      canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", scale);
     };
   }
+}
+
+function stat(label: string, value: string): HTMLElement {
+  return el("div", { class: "tally-cell" }, [el("small", {}, [label]), el("b", {}, [value])]);
 }
 
 function button(kind: string, label: string, onClick: () => void): HTMLButtonElement {

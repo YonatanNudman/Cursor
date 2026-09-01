@@ -43,8 +43,19 @@ export interface BreakerWorld {
   wobblePhase: number;
   shake: number;
   particles: Particle[];
+  /** Angle being aimed while a stuck ball is held, or null when not aiming. */
+  aim: number | null;
+  /** Recent ball positions, newest last, for the comet trail. */
+  trail: Array<{ x: number; y: number }>;
   hooks?: BreakerHooks;
 }
+
+/** Straight up. Aim is clamped to a cone around this so you cannot fire down. */
+export const AIM_UP = -Math.PI / 2;
+export const AIM_SPREAD = Math.PI * 0.44;
+
+/** Releasing a held aim fires harder than a tap ever did. */
+export const RELEASE_BOOST = 1.5;
 
 const PADDLE = { tiny: 72, normal: 118, wide: 168 };
 const MAX_LIVES = 12;
@@ -78,6 +89,8 @@ export function createWorld(
     wobblePhase: 0,
     shake: 0,
     particles: [],
+    aim: null,
+    trail: [],
   };
   placeStuckBalls(world);
   return world;
@@ -118,15 +131,55 @@ export function movePaddle(world: BreakerWorld, x: number): void {
   placeStuckBalls(world);
 }
 
-export function launchBalls(world: BreakerWorld): void {
+/** Point the shot at a canvas coordinate, clamped to the upward cone. */
+export function aimAt(world: BreakerWorld, x: number, y: number): number | null {
+  const ball = world.balls.find((candidate) => candidate.stuck);
+  if (!ball) {
+    world.aim = null;
+    return null;
+  }
+  const raw = Math.atan2(y - ball.y, x - ball.x);
+  world.aim = clampAim(raw);
+  return world.aim;
+}
+
+export function clampAim(angle: number): number {
+  // Work in offsets from straight up so the wrap at +/-PI cannot bite.
+  let offset = angle - AIM_UP;
+  while (offset > Math.PI) offset -= Math.PI * 2;
+  while (offset < -Math.PI) offset += Math.PI * 2;
+  return AIM_UP + clamp(offset, -AIM_SPREAD, AIM_SPREAD);
+}
+
+export function clearAim(world: BreakerWorld): void {
+  world.aim = null;
+}
+
+/**
+ * Fire every stuck ball. With an angle the shot goes where it was aimed and
+ * leaves faster, which is what makes releasing a held aim feel like a shot
+ * rather than a nudge. Without one it fans out, for a keyboard launch.
+ */
+export function launchBalls(world: BreakerWorld, angle?: number | null): void {
   const stuck = world.balls.filter((ball) => ball.stuck);
+  if (stuck.length === 0) return;
+  const aimed = angle ?? world.aim;
+  const speed = world.speed * (aimed === null || aimed === undefined ? 1 : RELEASE_BOOST);
   stuck.forEach((ball, index) => {
     ball.stuck = false;
-    const t = stuck.length === 1 ? 0.5 : index / (stuck.length - 1);
-    const angle = (t - 0.5) * Math.PI * 0.72;
-    ball.vx = Math.sin(angle) * world.speed;
-    ball.vy = -Math.abs(Math.cos(angle) * world.speed);
+    let heading: number;
+    if (aimed === null || aimed === undefined) {
+      const t = stuck.length === 1 ? 0.5 : index / (stuck.length - 1);
+      heading = AIM_UP + (t - 0.5) * Math.PI * 0.72;
+    } else {
+      // A fanned spread around the aim keeps multiball from stacking one line.
+      const t = stuck.length === 1 ? 0 : index / (stuck.length - 1) - 0.5;
+      heading = clampAim(aimed + t * 0.32);
+    }
+    ball.vx = Math.cos(heading) * speed;
+    ball.vy = Math.sin(heading) * speed;
   });
+  world.aim = null;
 }
 
 const MAX_LIVE_BALLS = 12;
@@ -268,6 +321,14 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
     return particle.life > 0;
   });
 
+  const lead = world.balls.find((ball) => !ball.stuck);
+  if (lead) {
+    world.trail.push({ x: lead.x, y: lead.y });
+    if (world.trail.length > 18) world.trail.shift();
+  } else if (world.trail.length > 0) {
+    world.trail.shift();
+  }
+
   const fireball = now < world.fireballUntil;
   const wobbly = now < world.wobbleUntil;
 
@@ -375,6 +436,39 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(brick.kind === "quiz" ? "?" : String(brick.hp), brick.x + brick.w / 2, brick.y + brick.h / 2 + 0.5);
+  }
+
+  // Comet trail behind the lead ball.
+  world.trail.forEach((point, index) => {
+    const t = (index + 1) / world.trail.length;
+    ctx.globalAlpha = t * 0.5;
+    ctx.fillStyle = "#f3ead8";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, Math.max(1.5, 4 * t), 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Aiming line: dotted, so it reads as a plan rather than a laser.
+  if (world.aim !== null) {
+    const ball = world.balls.find((candidate) => candidate.stuck);
+    if (ball) {
+      const dx = Math.cos(world.aim);
+      const dy = Math.sin(world.aim);
+      // Long enough to reach the wall, and bright enough to read as a plan.
+      for (let step = 1; step <= 40; step += 1) {
+        const dist = step * 20;
+        const x = ball.x + dx * dist;
+        const y = ball.y + dy * dist;
+        if (y < -10 || x < -10 || x > world.width + 10) break;
+        ctx.globalAlpha = Math.max(0.22, 0.95 - step * 0.02);
+        ctx.fillStyle = "#5cffc3";
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(2, 4.2 - step * 0.05), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   for (const particle of world.particles) {

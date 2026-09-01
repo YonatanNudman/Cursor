@@ -78,3 +78,36 @@ describe("quiz pile-up", () => {
     expect(second.alive).toBe(true);
   });
 });
+
+describe("aim and release", () => {
+  it("clamps aim into an upward cone and never fires downward", async () => {
+    const { clampAim, AIM_UP, AIM_SPREAD } = await import("../src/game/breaker");
+    expect(clampAim(AIM_UP)).toBeCloseTo(AIM_UP);
+    // straight down should be pulled back to the edge of the cone
+    expect(clampAim(Math.PI / 2)).toBeCloseTo(AIM_UP + AIM_SPREAD);
+    for (const angle of [0, 1, -1, 2.5, -2.5, 3, -3, Math.PI]) {
+      expect(Math.sin(clampAim(angle)), `angle ${angle}`).toBeLessThan(0);
+    }
+  });
+
+  it("releasing an aimed shot leaves faster than an unaimed one", async () => {
+    const { createWorld, launchBalls, RELEASE_BOOST } = await import("../src/game/breaker");
+    const { buildLevel } = await import("../src/logic/bricks");
+    const spec = {
+      rows: 2, cols: 4, width: 360, height: 640,
+      padding: 10, offsetY: 10, quizRatio: 0.2, minHp: 1, maxHp: 2,
+    };
+    const plain = createWorld(360, 640, buildLevel(spec, () => 0.5), 3, 6, 1);
+    launchBalls(plain);
+    const plainSpeed = Math.hypot(plain.balls[0]!.vx, plain.balls[0]!.vy);
+
+    const aimed = createWorld(360, 640, buildLevel(spec, () => 0.5), 3, 6, 1);
+    launchBalls(aimed, -Math.PI / 2);
+    const aimedSpeed = Math.hypot(aimed.balls[0]!.vx, aimed.balls[0]!.vy);
+
+    expect(aimedSpeed).toBeGreaterThan(plainSpeed);
+    expect(aimedSpeed / plainSpeed).toBeCloseTo(RELEASE_BOOST, 1);
+    expect(aimed.balls[0]!.stuck).toBe(false);
+    expect(aimed.aim).toBeNull();
+  });
+});
