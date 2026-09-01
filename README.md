@@ -6,6 +6,10 @@ Hundreds of questions across eighteen sections. A run will not repeat a question
 
 Built to play on a phone: drag to aim, tap to launch.
 
+## Play on your phone
+
+Permanent link: **https://yonatannudman.github.io/Cursor/**
+
 ## Play locally
 
 ```bash
@@ -19,4 +23,4 @@ npm run dev
 npm run deploy
 ```
 
-That builds the static game and deploys it as a Workers static-assets site. After `wrangler login`, you get a stable `*.workers.dev` URL you can open on your phone.
+That builds the static game and deploys it as a Workers static-assets site. After `wrangler login`, you get a stable `*.workers.dev` URL. The GitHub Pages link above stays up without that login.
