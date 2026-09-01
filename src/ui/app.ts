@@ -15,6 +15,15 @@ import { pickEffect } from "../logic/effects";
 import { brickPoints, formatScore, waveClearBonus } from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
 import {
+  BALL_STOCKS,
+  SPEEDS,
+  TABLE_BALLS,
+  readSettings,
+  writeSettings,
+  type RunSettings,
+  type SpeedMult,
+} from "../logic/settings";
+import {
   createTriviaSession,
   drawQuestion,
   gradeAnswer,
@@ -35,6 +44,7 @@ const HOSTS = [
 export class App {
   private screen: Screen = "title";
   private best = readBest(window.localStorage);
+  private settings: RunSettings = readSettings(window.localStorage);
   private result: ScoreCard | null = null;
   private stopLoop: (() => void) | null = null;
   private unbind: (() => void) | null = null;
@@ -78,13 +88,16 @@ export class App {
       el("p", { class: "kicker" }, ["One table. Many questions."]),
       el("h1", { class: "title" }, ["Mind", el("span", {}, ["breaker"])]),
       el("p", { class: "lede" }, [
-        "Break pink question bricks. A right answer rewrites the table — extra balls, a wider paddle, a fireball. A wrong one makes the wall meaner.",
+        "Pink question bricks pause the wall. Right answers dump balls and rewrite the table. Wrong ones make it meaner.",
       ]),
       el("div", { class: "best" }, [el("small", {}, ["Best run"]), formatScore(this.best)]),
+      this.picker("Speed", SPEEDS, this.settings.speed, (speed) => this.patchSettings({ speed }), (n) => `${n}x`),
+      this.picker("Balls in pocket", BALL_STOCKS, this.settings.balls, (balls) => this.patchSettings({ balls })),
+      this.picker("Balls on the table", TABLE_BALLS, this.settings.table, (table) => this.patchSettings({ table })),
       el("div", { class: "rules" }, [
-        el("p", {}, [el("b", {}, ["Pink ?"]), " — trivia. Eighteen sections, hundreds of questions. No repeats until the bank is empty."]),
-        el("p", {}, [el("b", {}, ["Numbers"]), " — hits left. Some bricks take a beating."]),
-        el("p", {}, [el("b", {}, ["Balls"]), " — you only get a few. Drag to aim. Tap to launch."]),
+        el("p", {}, [el("b", {}, ["Pink ?"]), " — trivia. Eighteen sections. No repeats until the bank is empty."]),
+        el("p", {}, [el("b", {}, ["Speed"]), " — 1x is already quick. 4x is a blur. Change it mid-run too."]),
+        el("p", {}, [el("b", {}, ["Balls"]), " — pocket is lives (3–9). Table is 1, 2, or 3 launching together. Right answers dump pairs, triples, and storms."]),
       ]),
       el("div", { class: "actions" }, [
         button("solid", "Play", () => {
@@ -99,7 +112,7 @@ export class App {
   private playRun(): void {
     let wave = 1;
     let score = 0;
-    let lives = 4;
+    let lives: number = this.settings.balls;
     let settled = false;
     const session = createTriviaSession(preferFresh(QUESTIONS, readSeen(window.localStorage)));
     const askedThisRun: string[] = [];
@@ -130,13 +143,15 @@ export class App {
       const width = Math.max(320, Math.floor(frame.width));
       const height = Math.max(360, Math.floor(frame.height));
       const spec = waveSpec(wave, width, height);
-      const world = attachHooks(createWorld(width, height, buildLevel(spec), lives, 4.6 + wave * 0.22), {
+      const world = attachHooks(
+        createWorld(width, height, buildLevel(spec), lives, 6.1 + wave * 0.32, this.settings.table),
+        {
         onBrickHit: (brick, broke) => {
           if (!broke) {
             sound.brick();
             return;
           }
-          score += brickPoints(brick.maxHp, brick.kind);
+          score += brickPoints(brick.maxHp, brick.kind) * this.settings.speed;
           hud.score.textContent = formatScore(score);
           if (brick.kind === "quiz") {
             sound.break();
@@ -160,8 +175,8 @@ export class App {
           }
         },
         onBoardClear: () => {
-          score += waveClearBonus(wave, world.lives);
-          lives = Math.min(6, world.lives + 1);
+          score += waveClearBonus(wave, world.lives) * this.settings.speed;
+          lives = Math.min(12, world.lives + 1);
           sound.win();
           wave += 1;
           hud.wave.textContent = String(wave);
@@ -174,7 +189,7 @@ export class App {
       lives = world.lives;
       paintBalls(hud.balls, lives);
       hud.wave.textContent = String(wave);
-      this.bindBreaker(hud.canvas, hud.board, world);
+      this.bindBreaker(hud.canvas, hud.board, world, () => this.settings.speed);
     };
 
     const maybeAsk = (world: BreakerWorld): void => {
@@ -193,7 +208,7 @@ export class App {
               quizQueue.push(extra);
             }
           } else {
-            score += brickPoints(brick.maxHp, "hp");
+            score += brickPoints(brick.maxHp, "hp") * this.settings.speed;
           }
         }
         lives = world.lives;
@@ -241,7 +256,7 @@ export class App {
         ]),
         board,
         el("div", { class: "foot" }, [
-          el("span", {}, ["Pink ? = trivia  ·  numbers = hits"]),
+          this.speedBar(),
           button("ghost tiny", "Quit", () => this.go("title")),
         ]),
       ]),
@@ -270,7 +285,58 @@ export class App {
     );
   }
 
-  private bindBreaker(canvas: HTMLCanvasElement, board: HTMLElement, world: BreakerWorld): void {
+  private patchSettings(partial: Partial<RunSettings>): void {
+    this.settings = writeSettings(window.localStorage, { ...this.settings, ...partial });
+  }
+
+  private picker<T extends number>(
+    label: string,
+    values: readonly T[],
+    current: T,
+    onPick: (value: T) => void,
+    format: (value: T) => string = String,
+  ): HTMLElement {
+    const row = el("div", { class: "picker" }, [el("span", { class: "picker-label" }, [label])]);
+    const chips = el("div", { class: "chips" });
+    const paint = (): void => {
+      clear(chips);
+      for (const value of values) {
+        const chip = button(value === current ? "chip on" : "chip", format(value), () => {
+          current = value;
+          onPick(value);
+          paint();
+        });
+        chips.append(chip);
+      }
+    };
+    paint();
+    row.append(chips);
+    return row;
+  }
+
+  private speedBar(): HTMLElement {
+    const bar = el("div", { class: "chips" });
+    const paint = (): void => {
+      clear(bar);
+      for (const speed of SPEEDS) {
+        bar.append(
+          button(speed === this.settings.speed ? "chip on" : "chip", `${speed}x`, () => {
+            this.patchSettings({ speed });
+            paint();
+          }),
+        );
+      }
+    };
+    paint();
+    return bar;
+  }
+
+  private bindBreaker(
+    canvas: HTMLCanvasElement,
+    board: HTMLElement,
+    world: BreakerWorld,
+    speedOf: () => SpeedMult,
+  ): void {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -338,9 +404,14 @@ export class App {
     let raf = 0;
     const tick = (now: number): void => {
       if (world.paused) release();
-      const dt = Math.min(0.033, (now - last) / 1000);
+      const raw = Math.min(0.033, (now - last) / 1000);
       last = now;
-      stepWorld(world, dt, now);
+      const scaled = raw * speedOf();
+      const steps = Math.max(1, Math.ceil(scaled / 0.016));
+      const slice = scaled / steps;
+      for (let i = 0; i < steps; i += 1) {
+        stepWorld(world, slice, now);
+      }
       drawWorld(ctx, world, now);
       raf = requestAnimationFrame(tick);
     };
@@ -367,6 +438,10 @@ function button(kind: string, label: string, onClick: () => void): HTMLButtonEle
 
 function paintBalls(node: HTMLElement, lives: number): void {
   clear(node);
+  if (lives > 8) {
+    node.append(el("span", { class: "ball" }), el("span", { class: "ball-count" }, [`×${lives}`]));
+    return;
+  }
   const max = Math.max(4, lives);
   for (let i = 0; i < max; i += 1) {
     node.append(el("span", { class: i < lives ? "ball" : "ball gone" }));

@@ -32,7 +32,10 @@ export interface TriviaQuestion {
 
 export type EffectKind =
   | "extraLife"
+  | "extraPair"
   | "multiball"
+  | "tripleBall"
+  | "ballStorm"
   | "widePaddle"
   | "slowBall"
   | "fireball"

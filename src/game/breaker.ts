@@ -47,6 +47,7 @@ export interface BreakerWorld {
 }
 
 const PADDLE = { tiny: 72, normal: 118, wide: 168 };
+const MAX_LIVES = 12;
 
 export function createWorld(
   width: number,
@@ -54,15 +55,19 @@ export function createWorld(
   bricks: Brick[],
   lives: number,
   speed: number,
+  tableBalls = 1,
 ): BreakerWorld {
   const paddleW = Math.min(PADDLE.normal, width * 0.34);
-  return {
+  const radius = Math.max(7, width * 0.018);
+  const start = Math.max(1, Math.min(3, tableBalls));
+  const balls = Array.from({ length: start }, () => stuckBall(width / 2, height - 40, radius));
+  const world: BreakerWorld = {
     width,
     height,
     bricks,
-    balls: [stuckBall(width / 2, height - 40, Math.max(7, width * 0.018))],
+    balls,
     paddle: { x: width / 2 - paddleW / 2, y: height - 26, w: paddleW, h: 14 },
-    lives,
+    lives: Math.min(MAX_LIVES, lives),
     speed,
     paused: false,
     cleared: false,
@@ -74,10 +79,23 @@ export function createWorld(
     shake: 0,
     particles: [],
   };
+  placeStuckBalls(world);
+  return world;
 }
 
 function stuckBall(x: number, y: number, r: number): Ball {
   return { x, y, r, vx: 0, vy: 0, stuck: true };
+}
+
+function placeStuckBalls(world: BreakerWorld): void {
+  const stuck = world.balls.filter((ball) => ball.stuck);
+  if (!stuck.length) return;
+  const span = Math.min(world.paddle.w * 0.62, 78);
+  stuck.forEach((ball, index) => {
+    const t = stuck.length === 1 ? 0.5 : index / (stuck.length - 1);
+    ball.x = world.paddle.x + world.paddle.w / 2 + (t - 0.5) * span;
+    ball.y = world.paddle.y - ball.r - 1;
+  });
 }
 
 function paddleWidth(world: BreakerWorld): number {
@@ -97,29 +115,30 @@ function setPaddleMode(world: BreakerWorld, mode: PaddleMode, now: number): void
 export function movePaddle(world: BreakerWorld, x: number): void {
   const half = world.paddle.w / 2;
   world.paddle.x = clamp(x - half, 6, world.width - world.paddle.w - 6);
-  for (const ball of world.balls) {
-    if (ball.stuck) {
-      ball.x = world.paddle.x + world.paddle.w / 2;
-      ball.y = world.paddle.y - ball.r - 1;
-    }
-  }
+  placeStuckBalls(world);
 }
 
 export function launchBalls(world: BreakerWorld): void {
-  for (const ball of world.balls) {
-    if (!ball.stuck) continue;
+  const stuck = world.balls.filter((ball) => ball.stuck);
+  stuck.forEach((ball, index) => {
     ball.stuck = false;
-    const bounce = paddleBounce(ball.x, world.paddle.x, world.paddle.w, world.speed);
-    ball.vx = bounce.vx;
-    ball.vy = bounce.vy;
-  }
+    const t = stuck.length === 1 ? 0.5 : index / (stuck.length - 1);
+    const angle = (t - 0.5) * Math.PI * 0.72;
+    ball.vx = Math.sin(angle) * world.speed;
+    ball.vy = -Math.abs(Math.cos(angle) * world.speed);
+  });
 }
+
+const MAX_LIVE_BALLS = 12;
 
 export function spawnBalls(world: BreakerWorld, count: number): void {
   const source = world.balls.find((ball) => !ball.stuck) ?? world.balls[0];
   if (!source) return;
-  for (let i = 0; i < count; i += 1) {
-    const angle = (-0.7 + i * 0.4) * Math.PI;
+  const room = Math.max(0, MAX_LIVE_BALLS - world.balls.length);
+  const add = Math.min(count, room);
+  for (let i = 0; i < add; i += 1) {
+    const t = add === 1 ? 0.5 : i / (add - 1);
+    const angle = -Math.PI / 2 + (t - 0.5) * Math.PI * 0.9;
     world.balls.push({
       x: source.x,
       y: source.y,
@@ -149,10 +168,19 @@ export function applyEffect(world: BreakerWorld, effect: Effect, now: number): B
   const extraBroken: Brick[] = [];
   switch (effect.id) {
     case "extraLife":
-      world.lives += 1;
+      world.lives = Math.min(MAX_LIVES, world.lives + 1);
+      break;
+    case "extraPair":
+      world.lives = Math.min(MAX_LIVES, world.lives + 2);
       break;
     case "multiball":
       spawnBalls(world, 2);
+      break;
+    case "tripleBall":
+      spawnBalls(world, 3);
+      break;
+    case "ballStorm":
+      spawnBalls(world, 5);
       break;
     case "widePaddle":
       setPaddleMode(world, "wide", now);
@@ -176,7 +204,7 @@ export function applyEffect(world: BreakerWorld, effect: Effect, now: number): B
       setPaddleMode(world, "tiny", now);
       break;
     case "fastBall":
-      world.speed = Math.min(9.2, world.speed * 1.2);
+      world.speed = Math.min(12, world.speed * 1.18);
       rescaleBalls(world);
       break;
     case "wobblyBall":
@@ -231,6 +259,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
 
   world.shake = Math.max(0, world.shake - dt * 28);
   world.wobblePhase += dt * 10;
+  placeStuckBalls(world);
 
   world.particles = world.particles.filter((particle) => {
     particle.x += particle.vx;
@@ -243,11 +272,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
   const wobbly = now < world.wobbleUntil;
 
   for (const ball of world.balls) {
-    if (ball.stuck) {
-      ball.x = world.paddle.x + world.paddle.w / 2;
-      ball.y = world.paddle.y - ball.r - 1;
-      continue;
-    }
+    if (ball.stuck) continue;
 
     if (wobbly) {
       ball.vx += Math.sin(world.wobblePhase + ball.x * 0.02) * 0.18;

@@ -41,6 +41,7 @@ button {
   padding: calc(20px + var(--safe-top)) 18px calc(22px + var(--safe-bottom));
   display: flex;
   flex-direction: column;
+  overflow: auto;
 }
 
 .kicker {
@@ -299,4 +300,56 @@ canvas {
   min-height: 44px;
   border-radius: 999px;
   padding: 8px 14px;
+}
+
+.picker {
+  margin-top: 14px;
+}
+
+.picker-label {
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  min-height: 40px;
+  min-width: 48px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--paper);
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+}
+
+.chip.on {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--paper);
+}
+
+.ball-count {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  color: var(--gold);
+}
+
+.foot .chips {
+  flex: 1;
+}
+
+.rules {
+  margin-top: 14px;
 }
