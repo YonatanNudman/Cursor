@@ -8,7 +8,9 @@ Built to play on a phone: drag to aim, tap to launch.
 
 ## Play on your phone
 
-Permanent link: **https://yonatannudman.github.io/Cursor/**
+**https://yonatannudman.github.io/Cursor/**
+
+That is the stable phone link. If it 404s, turn on Pages once: repo **Settings → Pages → Source: GitHub Actions**, then this workflow publishes it. Until that switch is on, the same build is also in [`docs/`](docs/).
 
 ## Play locally
 
