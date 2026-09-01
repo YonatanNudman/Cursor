@@ -13,38 +13,31 @@ Built to play on a phone: drag to move, tap to launch. No setup screen, just Pla
 
 ## Play on your phone
 
-The permanent link:
+### Share this now, no account needed
 
-**https://mindbreaker.third-sun.workers.dev**
+**https://raw.githack.com/YonatanNudman/Cursor/main/docs/index.html**
 
-That is a Cloudflare Workers deployment. It does not expire, so the link keeps
-working and can be shared as-is. Once the repo secrets below are set, every push
-to `main` redeploys to that same URL, so it never goes stale.
+This repository is public, so that link serves `docs/` straight from the `main`
+branch to anyone, with no sign-in. It follows the branch rather than a pinned
+commit, so pushing a new build to `main` updates it.
 
-If it ever stops resolving, redeploy it by hand:
+### The permanent link, one switch away
 
-```bash
-npx wrangler login
-npm run deploy
-```
+Pages is not enabled yet, and only a repository admin can turn it on the first
+time. The Actions token is not allowed to, which is why the Pages workflow stops
+at `Create Pages site failed: Resource not accessible by integration`.
 
-There is also an older stopgap on a third-party CDN, pinned to one commit. It
-does not follow new commits and is not a permanent home:
+To finish it, in this repository go to **Settings, then Pages**, and set
+**Source** to **GitHub Actions**. Do not pick "Deploy from a branch", the
+workflow handles it.
 
-`https://rawcdn.githack.com/YonatanNudman/Cursor/7b99692f504bea4c0e43295802ef588f234aaf9c/docs/index.html`
+That is the whole setup. The next push to `main` publishes to:
 
-### Connecting Cloudflare (one time)
+**https://yonatannudman.github.io/Cursor/**
 
-1. In the Cloudflare dashboard, create an API token from the
-   **Edit Cloudflare Workers** template, and copy your Account ID from the
-   Workers & Pages sidebar.
-2. In this repo, go to Settings -> Secrets and variables -> Actions, and add
-   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-3. Merge the game branch into `main`.
-
-The Deploy workflow does the rest, and prints the live URL in its log. After
-that, pushing to `main` is the whole deploy process. You can also run it by hand
-from the Actions tab with **Run workflow**.
+which is permanent, public, needs no account, and rebuilds itself on every push
+from then on. To publish immediately after flipping the switch, run the **Pages**
+workflow from the Actions tab.
 
 ## Play locally
 
