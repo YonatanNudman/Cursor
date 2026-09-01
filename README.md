@@ -8,15 +8,23 @@ Built to play on a phone: drag to aim, tap to launch.
 
 ## Play on your phone
 
-The permanent link, once Cloudflare is connected (see below):
+The permanent link:
 
-**https://mindbreaker.<your-subdomain>.workers.dev**
+**https://mindbreaker.third-sun.workers.dev**
 
-Every push to `main` rebuilds and redeploys to that same URL, so the link never
-changes and never goes stale.
+That is a Cloudflare Workers deployment. It does not expire, so the link keeps
+working and can be shared as-is. Once the repo secrets below are set, every push
+to `main` redeploys to that same URL, so it never goes stale.
 
-Until then there is a stopgap on a third-party CDN, pinned to one commit. It
-works, but it does not follow new commits and it is not a permanent home:
+If it ever stops resolving, redeploy it by hand:
+
+```bash
+npx wrangler login
+npm run deploy
+```
+
+There is also an older stopgap on a third-party CDN, pinned to one commit. It
+does not follow new commits and is not a permanent home:
 
 `https://rawcdn.githack.com/YonatanNudman/Cursor/7b99692f504bea4c0e43295802ef588f234aaf9c/docs/index.html`
 
