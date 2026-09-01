@@ -10,7 +10,7 @@ Built to play on a phone: drag to aim, tap to launch.
 
 Open this on your phone. It stays up:
 
-**https://rawcdn.githack.com/YonatanNudman/Cursor/7b99692f504bea4c0e43295802ef588f234aaf9c/docs/**
+**https://rawcdn.githack.com/YonatanNudman/Cursor/7b99692f504bea4c0e43295802ef588f234aaf9c/docs/index.html**
 
 Pretty URL after one GitHub toggle: **https://yonatannudman.github.io/Cursor/**  
 Repo **Settings → Pages → Source: GitHub Actions**, then the deploy workflow publishes it.
