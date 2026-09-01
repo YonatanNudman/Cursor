@@ -12,6 +12,7 @@ import {
 import { sound } from "../audio";
 import { aliveBricks, buildLevel, waveSpec } from "../logic/bricks";
 import { pickEffect } from "../logic/effects";
+import { canQueueQuiz } from "../logic/quiz-gate";
 import { brickPoints, formatScore, waveClearBonus } from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
 import {
@@ -118,6 +119,7 @@ export class App {
     const askedThisRun: string[] = [];
     const quizQueue: TriviaQuestion[] = [];
     let asking = false;
+    let wavePending = false;
 
     const hud = this.mountPlay();
     const finish = (title: string, detail: string): void => {
@@ -155,11 +157,13 @@ export class App {
           hud.score.textContent = formatScore(score);
           if (brick.kind === "quiz") {
             sound.break();
-            const question = drawQuestion(session);
-            if (question) {
-              askedThisRun.push(question.id);
-              quizQueue.push(question);
-              maybeAsk(world);
+            if (canQueueQuiz(asking, quizQueue.length)) {
+              const question = drawQuestion(session);
+              if (question) {
+                askedThisRun.push(question.id);
+                quizQueue.push(question);
+                maybeAsk(world);
+              }
             }
           } else {
             sound.break();
@@ -175,15 +179,8 @@ export class App {
           }
         },
         onBoardClear: () => {
-          score += waveClearBonus(wave, world.lives) * this.settings.speed;
-          lives = Math.min(12, world.lives + 1);
-          sound.win();
-          wave += 1;
-          hud.wave.textContent = String(wave);
-          hud.score.textContent = formatScore(score);
-          banner(hud.board, "good", `Wave ${wave - 1} cleared`, "The next wall brought more questions.", () => {
-            startWave();
-          });
+          wavePending = true;
+          if (!asking) finishWave(world);
         },
       });
       lives = world.lives;
@@ -201,15 +198,7 @@ export class App {
       showQuiz(hud.board, question, session, world, (correct, effect) => {
         const broken = applyEffect(world, effect, performance.now());
         for (const brick of broken) {
-          if (brick.kind === "quiz") {
-            const extra = drawQuestion(session);
-            if (extra) {
-              askedThisRun.push(extra.id);
-              quizQueue.push(extra);
-            }
-          } else {
-            score += brickPoints(brick.maxHp, "hp") * this.settings.speed;
-          }
+          score += brickPoints(brick.maxHp, brick.kind) * this.settings.speed;
         }
         lives = world.lives;
         paintBalls(hud.balls, lives);
@@ -222,10 +211,29 @@ export class App {
         }
         banner(hud.board, effect.tone, effect.headline, effect.detail, () => {
           asking = false;
+          if (wavePending) {
+            finishWave(world);
+            return;
+          }
           world.paused = false;
           maybeAsk(world);
         });
         void correct;
+      });
+    };
+
+    const finishWave = (world: BreakerWorld): void => {
+      if (!wavePending || asking) return;
+      wavePending = false;
+      quizQueue.length = 0;
+      score += waveClearBonus(wave, world.lives) * this.settings.speed;
+      lives = Math.min(12, world.lives + 1);
+      sound.win();
+      wave += 1;
+      hud.wave.textContent = String(wave);
+      hud.score.textContent = formatScore(score);
+      banner(hud.board, "good", `Wave ${wave - 1} cleared`, "The next wall brought more questions.", () => {
+        startWave();
       });
     };
 

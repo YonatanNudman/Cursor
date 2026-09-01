@@ -194,7 +194,7 @@ export function applyEffect(world: BreakerWorld, effect: Effect, now: number): B
       break;
     case "chipWall":
       for (const brick of world.bricks) {
-        if (!brick.alive) continue;
+        if (!brick.alive || brick.kind === "quiz") continue;
         const result = hitBrick(brick);
         burst(world, brick.x + brick.w / 2, brick.y + brick.h / 2, colorForBrick(brick));
         if (result.broke) extraBroken.push(brick);
@@ -271,7 +271,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
   const fireball = now < world.fireballUntil;
   const wobbly = now < world.wobbleUntil;
 
-  for (const ball of world.balls) {
+  balls: for (const ball of world.balls) {
     if (ball.stuck) continue;
 
     if (wobbly) {
@@ -319,6 +319,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
       const result = hitBrick(brick);
       burst(world, brick.x + brick.w / 2, brick.y + brick.h / 2, colorForBrick(brick));
       world.hooks?.onBrickHit(brick, result.broke);
+      if (world.paused) break balls;
       if (!fireball) break;
     }
   }
