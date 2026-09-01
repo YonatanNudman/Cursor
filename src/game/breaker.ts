@@ -57,6 +57,18 @@ export const AIM_SPREAD = Math.PI * 0.44;
 /** Releasing a held aim fires harder than a tap ever did. */
 export const RELEASE_BOOST = 1.5;
 
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+
+/** Lighten or darken a hex colour, for glaze highlights and seated shadow. */
+function shade(hex: string, factor: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const clampByte = (v: number): number => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clampByte(((n >> 16) & 255) * factor);
+  const g = clampByte(((n >> 8) & 255) * factor);
+  const b = clampByte((n & 255) * factor);
+  return `rgb(${r},${g},${b})`;
+}
+
 const PADDLE = { tiny: 72, normal: 118, wide: 168 };
 const MAX_LIVES = 12;
 
@@ -203,13 +215,18 @@ export function spawnBalls(world: BreakerWorld, count: number): void {
   }
 }
 
+/**
+ * Enamel, not candy. Each tier is a fired-glaze colour rather than a neon, and
+ * the ramp runs cool to hot as armour deepens so the wall reads at a glance.
+ * Question bricks are brass because they are the thing worth hitting.
+ */
 export function colorForBrick(brick: Brick): string {
-  if (brick.kind === "quiz") return "#ff6b9d";
-  if (brick.hp >= 5) return "#ff5d5d";
-  if (brick.hp >= 4) return "#ff8a4a";
-  if (brick.hp >= 3) return "#ffc24b";
-  if (brick.hp >= 2) return "#5ad0c6";
-  return "#7ee0ff";
+  if (brick.kind === "quiz") return "#e0a83a";
+  if (brick.hp >= 5) return "#a8414c";
+  if (brick.hp >= 4) return "#c26a3c";
+  if (brick.hp >= 3) return "#c99a3a";
+  if (brick.hp >= 2) return "#4c8f7d";
+  return "#3f6f9e";
 }
 
 export function attachHooks(world: BreakerWorld, hooks: BreakerHooks): BreakerWorld {
@@ -408,31 +425,63 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
   }
   ctx.clearRect(-20, -20, world.width + 40, world.height + 40);
   const g = ctx.createLinearGradient(0, 0, 0, world.height);
-  g.addColorStop(0, "#101428");
-  g.addColorStop(1, "#07090f");
+  g.addColorStop(0, "#241832");
+  g.addColorStop(0.55, "#150e1c");
+  g.addColorStop(1, "#0b0710");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, world.width, world.height);
 
-  ctx.strokeStyle = "rgba(255,255,255,0.04)";
-  for (let x = 0; x < world.width; x += 28) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, world.height);
-    ctx.stroke();
-  }
+  // A warm spotlight above the wall, as if the board were lit from the rig.
+  const spot = ctx.createRadialGradient(
+    world.width / 2, world.height * 0.06, 10,
+    world.width / 2, world.height * 0.06, world.height * 0.52,
+  );
+  spot.addColorStop(0, "rgba(224,168,58,0.13)");
+  spot.addColorStop(1, "rgba(224,168,58,0)");
+  ctx.fillStyle = spot;
+  ctx.fillRect(0, 0, world.width, world.height);
 
   for (const brick of world.bricks) {
     if (!brick.alive) continue;
     const color = colorForBrick(brick);
-    roundRect(ctx, brick.x, brick.y, brick.w, brick.h, 6);
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.28 + (brick.hp / Math.max(brick.maxHp, 1)) * 0.72;
+    const wear = 0.5 + (brick.hp / Math.max(brick.maxHp, 1)) * 0.5;
+    const radius = 5;
+
+    // Seated shadow, so the wall sits on the stage instead of floating.
+    roundRect(ctx, brick.x, brick.y + 2, brick.w, brick.h, radius);
+    ctx.fillStyle = "rgba(11,7,16,0.55)";
+    ctx.fill();
+
+    const glaze = ctx.createLinearGradient(0, brick.y, 0, brick.y + brick.h);
+    glaze.addColorStop(0, shade(color, 1.24));
+    glaze.addColorStop(0.5, color);
+    glaze.addColorStop(1, shade(color, 0.7));
+    roundRect(ctx, brick.x, brick.y, brick.w, brick.h, radius);
+    ctx.globalAlpha = wear;
+    ctx.fillStyle = glaze;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(7,9,15,0.4)";
+
+    // Lit top edge.
+    ctx.beginPath();
+    ctx.moveTo(brick.x + radius, brick.y + 1.25);
+    ctx.lineTo(brick.x + brick.w - radius, brick.y + 1.25);
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.fillStyle = "#141414";
-    ctx.font = `700 ${Math.max(11, Math.round(brick.h * 0.48))}px 'IBM Plex Mono', monospace`;
+    ctx.lineWidth = 1;
+
+    if (brick.kind === "quiz") {
+      roundRect(ctx, brick.x, brick.y, brick.w, brick.h, radius);
+      ctx.strokeStyle = "rgba(246,201,100,0.85)";
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "rgba(20,12,24,0.82)";
+    ctx.font =
+      brick.kind === "quiz"
+        ? `800 ${Math.max(13, Math.round(brick.h * 0.56))}px ${MONO}`
+        : `600 ${Math.max(11, Math.round(brick.h * 0.44))}px ${MONO}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(brick.kind === "quiz" ? "?" : String(brick.hp), brick.x + brick.w / 2, brick.y + brick.h / 2 + 0.5);
@@ -442,7 +491,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
   world.trail.forEach((point, index) => {
     const t = (index + 1) / world.trail.length;
     ctx.globalAlpha = t * 0.5;
-    ctx.fillStyle = "#f3ead8";
+    ctx.fillStyle = "#f4ece1";
     ctx.beginPath();
     ctx.arc(point.x, point.y, Math.max(1.5, 4 * t), 0, Math.PI * 2);
     ctx.fill();
@@ -462,7 +511,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
         const y = ball.y + dy * dist;
         if (y < -10 || x < -10 || x > world.width + 10) break;
         ctx.globalAlpha = Math.max(0.22, 0.95 - step * 0.02);
-        ctx.fillStyle = "#5cffc3";
+        ctx.fillStyle = "#f6c964";
         ctx.beginPath();
         ctx.arc(x, y, Math.max(2, 4.2 - step * 0.05), 0, Math.PI * 2);
         ctx.fill();
@@ -478,7 +527,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
     ctx.globalAlpha = 1;
   }
 
-  ctx.fillStyle = now < world.fireballUntil ? "#ff8a4a" : "#5cffc3";
+  ctx.fillStyle = now < world.fireballUntil ? "#c26a3c" : "#4fae94";
   ctx.shadowColor = ctx.fillStyle;
   ctx.shadowBlur = 14;
   roundRect(ctx, world.paddle.x, world.paddle.y, world.paddle.w, world.paddle.h, 7);
@@ -488,7 +537,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
   for (const ball of world.balls) {
     ctx.beginPath();
     ctx.fillStyle = now < world.fireballUntil ? "#ff8a4a" : "#f4efe4";
-    ctx.shadowColor = now < world.wobbleUntil ? "#ff6b9d" : "#ffe66d";
+    ctx.shadowColor = now < world.wobbleUntil ? "#c4525f" : "#e0a83a";
     ctx.shadowBlur = 12;
     ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fill();

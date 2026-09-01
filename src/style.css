@@ -1,16 +1,29 @@
+/*
+ * Mindbreaker looks like a late-night quiz stage: a lit board of enamel buttons
+ * under a warm spotlight, brass for anything you win, oxblood for anything that
+ * costs you. The ground is plum-ink rather than black, so the neutrals carry a
+ * hue instead of reading as an unconsidered default.
+ */
 :root {
-  --ink: #07090f;
-  --paper: #f3ead8;
-  --paper-dim: #c9c0ad;
-  --mint: #5cffc3;
-  --coral: #ff6b6b;
-  --gold: #ffe66d;
-  --pink: #ff6b9d;
-  --sky: #7ee0ff;
-  --muted: #8b93a7;
-  --line: rgba(243, 234, 216, 0.14);
+  --ink: #150e1c;
+  --ink-deep: #0b0710;
+  --stage: #1e1428;
+  --paper: #f4ece1;
+  --paper-dim: #cbbcb4;
+  --muted: #9a8ba6;
+
+  --brass: #e0a83a;
+  --brass-hot: #f6c964;
+  --jade: #4fae94;
+  --rose: #c4525f;
+
+  --line: rgba(244, 236, 225, 0.12);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 }
 
 * {
@@ -24,9 +37,9 @@ body,
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
-  background: #07090f;
+  background: var(--ink-deep);
   color: var(--paper);
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: var(--ui);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -54,15 +67,16 @@ button {
 }
 
 .kicker {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--mint);
+  color: var(--brass);
   margin: 0 0 8px;
 }
 
 .title {
+  font-family: var(--display);
   margin: 0;
   font-size: clamp(44px, 14vw, 76px);
   line-height: 0.88;
@@ -70,7 +84,7 @@ button {
 }
 
 .title span {
-  color: var(--gold);
+  color: var(--brass);
 }
 
 .lede {
@@ -83,8 +97,8 @@ button {
 
 .best {
   margin-top: 18px;
-  font-family: "IBM Plex Mono", monospace;
-  color: var(--gold);
+  font-family: var(--mono);
+  color: var(--brass);
   font-size: 18px;
 }
 
@@ -100,7 +114,7 @@ button {
   margin-top: 22px;
   border: 1px solid var(--line);
   padding: 14px 14px 6px;
-  background: rgba(16, 20, 40, 0.65);
+  background: rgba(30, 20, 40, 0.7);
 }
 
 .rules p {
@@ -156,7 +170,7 @@ button {
 }
 
 .stat {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -183,7 +197,7 @@ button {
   height: 11px;
   border-radius: 50%;
   background: var(--paper);
-  box-shadow: 0 0 8px rgba(255, 230, 109, 0.45);
+  box-shadow: 0 0 8px rgba(224, 168, 58, 0.45);
 }
 
 .ball.gone {
@@ -196,7 +210,7 @@ button {
   position: relative;
   min-height: 0;
   border: 1px solid var(--line);
-  background: #07090f;
+  background: var(--ink-deep);
   touch-action: none;
 }
 
@@ -212,7 +226,7 @@ canvas {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
 }
@@ -220,7 +234,7 @@ canvas {
 .overlay {
   position: absolute;
   inset: 0;
-  background: rgba(7, 9, 15, 0.88);
+  background: rgba(11, 7, 16, 0.9);
   display: grid;
   place-items: end stretch;
   padding: 12px;
@@ -231,7 +245,7 @@ canvas {
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: #14182c;
+  background: var(--stage);
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px;
@@ -262,24 +276,25 @@ canvas {
 }
 
 .panel.good {
-  box-shadow: 0 0 0 2px rgba(92, 255, 195, 0.35);
+  box-shadow: 0 0 0 2px rgba(79, 174, 148, 0.35);
 }
 
 .panel.bad {
-  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.35);
+  box-shadow: 0 0 0 2px rgba(196, 82, 95, 0.35);
 }
 
 .meta {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--pink);
+  color: var(--brass-hot);
   margin: 0 0 8px;
 }
 
 .panel h2,
 .panel h3 {
+  font-family: var(--display);
   margin: 0 0 10px;
   letter-spacing: -0.03em;
   font-size: 24px;
@@ -297,13 +312,13 @@ canvas {
 }
 
 .choice.good {
-  border-color: var(--mint);
-  color: var(--mint);
+  border-color: var(--jade);
+  color: var(--jade);
 }
 
 .choice.bad {
-  border-color: var(--coral);
-  color: var(--coral);
+  border-color: var(--rose);
+  color: var(--rose);
 }
 
 .timer {
@@ -318,19 +333,23 @@ canvas {
   display: block;
   height: 100%;
   width: 100%;
-  background: var(--gold);
+  background: var(--brass);
 }
 
 .result h2 {
+  font-family: var(--display);
   font-size: clamp(36px, 10vw, 56px);
   margin: 8px 0;
   letter-spacing: -0.04em;
 }
 
 .big {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 28px;
-  color: var(--gold);
+  font-family: var(--mono);
+  font-size: clamp(44px, 14vw, 68px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--brass);
 }
 
 .ghost.tiny {
@@ -345,7 +364,7 @@ canvas {
 
 .picker-label {
   display: block;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -367,7 +386,7 @@ canvas {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--paper);
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-weight: 700;
 }
 
@@ -378,9 +397,9 @@ canvas {
 }
 
 .ball-count {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 14px;
-  color: var(--gold);
+  color: var(--brass);
 }
 
 .foot .chips {
@@ -405,7 +424,7 @@ canvas {
 }
 
 .best-inline {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -417,7 +436,7 @@ canvas {
   border: 0;
   padding: 6px 2px;
   color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -456,22 +475,22 @@ canvas {
 .combo b {
   font-size: 22px;
   letter-spacing: -0.04em;
-  color: var(--gold);
+  color: var(--brass);
 }
 
 .combo small {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 9px;
   letter-spacing: 0.14em;
   color: var(--muted);
 }
 
 .combo.tier-3 b {
-  color: var(--pink);
+  color: var(--brass-hot);
 }
 
 .combo.tier-4 b {
-  color: var(--coral);
+  color: var(--rose);
 }
 
 @keyframes combo-pop {
@@ -497,15 +516,15 @@ canvas {
   letter-spacing: -0.04em;
   pointer-events: none;
   animation: pop-rise 900ms ease-out forwards;
-  text-shadow: 0 2px 14px rgba(7, 9, 15, 0.9);
+  text-shadow: 0 2px 14px rgba(11, 7, 16, 0.92);
 }
 
 .pop.good {
-  color: var(--mint);
+  color: var(--jade);
 }
 
 .pop.bad {
-  color: var(--coral);
+  color: var(--rose);
 }
 
 @keyframes pop-rise {
@@ -534,19 +553,19 @@ canvas {
   justify-content: center;
   gap: 6px;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, rgba(255, 230, 109, 0.18), transparent 60%);
+  background: radial-gradient(circle at 50% 50%, rgba(224, 168, 58, 0.18), transparent 60%);
   animation: milestone-flash 1000ms ease-out forwards;
 }
 
 .milestone b {
   font-size: clamp(30px, 11vw, 52px);
   letter-spacing: -0.05em;
-  color: var(--gold);
-  text-shadow: 0 4px 22px rgba(7, 9, 15, 0.9);
+  color: var(--brass);
+  text-shadow: 0 4px 22px rgba(11, 7, 16, 0.92);
 }
 
 .milestone small {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.24em;
   color: var(--paper);
@@ -570,9 +589,9 @@ canvas {
 /* ---- The answer you should have picked ---- */
 
 .choice.reveal {
-  border-color: var(--mint);
-  color: var(--mint);
-  background: rgba(92, 255, 195, 0.12);
+  border-color: var(--jade);
+  color: var(--jade);
+  background: rgba(79, 174, 148, 0.12);
   animation: reveal-pulse 520ms ease-out 2;
 }
 
@@ -583,7 +602,7 @@ canvas {
 
 @keyframes reveal-pulse {
   50% {
-    box-shadow: 0 0 0 3px rgba(92, 255, 195, 0.28);
+    box-shadow: 0 0 0 3px rgba(79, 174, 148, 0.28);
   }
 }
 
@@ -629,23 +648,23 @@ canvas {
 }
 
 .level small {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--muted);
 }
 
 .level.on {
-  border-color: var(--mint);
-  background: rgba(92, 255, 195, 0.1);
+  border-color: var(--jade);
+  background: rgba(79, 174, 148, 0.1);
 }
 
 .level.on b {
-  color: var(--mint);
+  color: var(--jade);
 }
 
 .level-tag {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -671,7 +690,7 @@ canvas {
 }
 
 .tally-cell small {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -685,7 +704,7 @@ canvas {
 }
 
 .panel .note {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -706,7 +725,7 @@ canvas {
   padding: 10px 18px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgba(16, 20, 40, 0.92);
+  background: rgba(30, 20, 40, 0.95);
   pointer-events: none;
   text-align: center;
   animation: coach-in 300ms ease-out;
@@ -717,7 +736,7 @@ canvas {
 }
 
 .coach small {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--mono);
   font-size: 10.5px;
   color: var(--muted);
 }
