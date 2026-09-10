@@ -566,7 +566,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
       world.volleyActive = false;
       world.hooks?.onVolleyEnd?.();
     }
-  } else if (world.balls.length < before && world.balls.length === 0) {
+  } else if (!world.cleared && world.balls.length < before && world.balls.length === 0) {
     world.lives -= 1;
     if (world.lives > 0) {
       world.balls.push(stuckBall(world.paddle.x + world.paddle.w / 2, world.paddle.y - 8, 7));

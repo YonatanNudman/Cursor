@@ -1,5 +1,6 @@
 import type { Effect, EffectKind } from "../types";
 import { assertNever } from "../types";
+import type { PlayMode } from "./settings";
 
 export interface EffectContext {
   lives: number;
@@ -7,6 +8,7 @@ export interface EffectContext {
   ballsInPlay: number;
   alreadyWobbly: boolean;
   alreadyFireball: boolean;
+  mode?: PlayMode;
 }
 
 const GOOD: Record<
@@ -88,7 +90,15 @@ export function pickEffect(
   if (!correct && ctx.alreadyWobbly) {
     const filtered = pool.filter((id) => id !== "wobblyBall");
     if (filtered.length) {
-      return pack(filtered[Math.floor(rng() * filtered.length)]!);
+      pool.splice(0, pool.length, ...filtered);
+    }
+  }
+  if (ctx.mode === "cannon") {
+    const usable = pool.filter((id) => id !== "widePaddle" && id !== "tinyPaddle");
+    if (correct) usable.push("chipWall", "slowBall");
+    else usable.push("armorUp", "fastBall");
+    if (usable.length) {
+      pool.splice(0, pool.length, ...usable);
     }
   }
 

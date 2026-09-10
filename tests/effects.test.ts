@@ -28,4 +28,13 @@ describe("pickEffect", () => {
     const effect = pickEffect(false, 0, { ...base, lives: 2 }, () => 0.99);
     expect(["tinyPaddle", "fastBall", "wobblyBall", "armorUp", "dropRow", "loseLife"]).toContain(effect.id);
   });
+
+  it("never hands cannon a paddle that does nothing", () => {
+    for (let i = 0; i < 40; i += 1) {
+      const good = pickEffect(true, 1, { ...base, mode: "cannon" }, () => i / 40);
+      const bad = pickEffect(false, 0, { ...base, mode: "cannon" }, () => i / 40);
+      expect(good.id).not.toBe("widePaddle");
+      expect(bad.id).not.toBe("tinyPaddle");
+    }
+  });
 });

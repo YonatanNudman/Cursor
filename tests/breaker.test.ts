@@ -117,6 +117,25 @@ describe("question leftover sweep", () => {
   });
 });
 
+describe("wave clear", () => {
+  it("does not take a life after the wall is already gone", () => {
+    const world = createWorld(400, 500, [], 1, 6, 1);
+    world.cleared = true;
+    world.balls = [{ x: 200, y: 520, r: 7, vx: 0, vy: 8, stuck: false }];
+    let lost = 0;
+    attachHooks(world, {
+      onBrickHit: () => undefined,
+      onBallLost: () => {
+        lost += 1;
+      },
+      onBoardClear: () => undefined,
+    });
+    stepWorld(world, 0.05, 0);
+    expect(world.lives).toBe(1);
+    expect(lost).toBe(0);
+  });
+});
+
 describe("cannon volley", () => {
   it("fires the magazine then ends the volley without taking a life", () => {
     const world = createWorld(400, 500, [], 3, 6, 1, { mode: "cannon", magazine: 4 });

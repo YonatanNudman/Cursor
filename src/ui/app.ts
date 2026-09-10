@@ -99,6 +99,8 @@ export class App {
   private boardHost: HTMLElement | null = null;
   private paused = false;
   private asking = false;
+  private timeouts: number[] = [];
+  private quizCancel: (() => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.render();
@@ -110,7 +112,31 @@ export class App {
     this.render();
   }
 
+  private later(fn: () => void, ms: number): number {
+    const id = window.setTimeout(() => {
+      this.timeouts = this.timeouts.filter((item) => item !== id);
+      fn();
+    }, ms);
+    this.timeouts.push(id);
+    return id;
+  }
+
+  private flash(host: HTMLElement, tone: "good" | "bad", title: string, detail: string, then: () => void): void {
+    const overlay = el("div", { class: "overlay" }, [
+      el("div", { class: `panel ${tone}` }, [el("h3", {}, [title]), el("p", {}, [detail])]),
+    ]);
+    host.append(overlay);
+    this.later(() => {
+      overlay.remove();
+      then();
+    }, 1100);
+  }
+
   private teardown(): void {
+    for (const id of this.timeouts) window.clearTimeout(id);
+    this.timeouts = [];
+    this.quizCancel?.();
+    this.quizCancel = null;
     this.world = null;
     this.endRun = null;
     this.boardHost = null;
@@ -186,7 +212,6 @@ export class App {
     let asking = false;
     let wavePending = false;
     let quizReadyAt = 0;
-    let bricksSinceQuiz = 0;
 
     const hud = this.mountPlay();
     const paintAmmo = (world: BreakerWorld): void => {
@@ -249,15 +274,15 @@ export class App {
             score +=
               brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
             hud.score.textContent = formatScore(score);
-            bricksSinceQuiz += 1;
+            hud.streak.textContent = String(session.streak);
+            paintCombo(hud.combo, session.streak);
             sound.break();
             gagPop(hud.board, sound.maybeGoof(0.08));
             if (brick.kind === "quiz") {
               const ready = performance.now() >= quizReadyAt;
-              if (canQueueQuiz(asking, quizQueue.length, ready, bricksSinceQuiz)) {
+              if (canQueueQuiz(asking, quizQueue.length, ready)) {
                 const question = drawQuestion(session, wave, Math.random, settings.questionFloor);
                 if (question) {
-                  bricksSinceQuiz = 0;
                   askedThisRun.push(question.id);
                   quizQueue.push(question);
                   maybeAsk(world);
@@ -267,6 +292,7 @@ export class App {
             trySweep(world);
           },
           onBallLost: () => {
+            if (settled || world.cleared) return;
             sound.miss();
             gagPop(hud.board, sound.maybeGoof(0.35));
             lives = world.lives;
@@ -278,6 +304,7 @@ export class App {
           },
           onBoardClear: () => {
             wavePending = true;
+            world.paused = true;
             if (!asking) finishWave(world);
           },
           onVolleyEnd: () => {
@@ -316,7 +343,12 @@ export class App {
       asking = true;
       this.asking = true;
       world.paused = true;
-      showQuiz(hud.board, question, session, world, (correct, effect, points) => {
+      this.quizCancel = showQuiz(
+        hud.board,
+        question,
+        session,
+        world,
+        (correct, effect, points) => {
         const before = score;
         score += points * preset.weight;
         const broken = applyEffect(world, effect, performance.now());
@@ -340,9 +372,10 @@ export class App {
           finish("The question took the last ball", `${session.correct} right, ${session.missed} wrong.`);
           return;
         }
-        banner(hud.board, effect.tone, effect.headline, effect.detail, () => {
+        this.flash(hud.board, effect.tone, effect.headline, effect.detail, () => {
           asking = false;
           this.asking = false;
+          this.quizCancel = null;
           quizReadyAt = performance.now() + QUIZ_COOLDOWN_MS;
           if (wavePending) {
             finishWave(world);
@@ -353,7 +386,11 @@ export class App {
           maybeAsk(world);
         });
         void correct;
-      });
+        },
+        (fn, ms) => {
+          this.later(fn, ms);
+        },
+      );
     };
 
     const trySweep = (world: BreakerWorld): boolean => {
@@ -370,6 +407,7 @@ export class App {
       if (!wavePending || asking) return;
       wavePending = false;
       quizQueue.length = 0;
+      world.paused = true;
       score += waveClearBonus(wave, world.lives) * preset.weight;
       lives = preset.lifePerWave ? Math.min(12, world.lives + 1) : world.lives;
       sound.win();
@@ -377,7 +415,8 @@ export class App {
       wave += 1;
       hud.wave.textContent = String(wave);
       hud.score.textContent = formatScore(score);
-      banner(hud.board, "good", `Wave ${wave - 1} cleared`, "The next wall brought more questions.", () => {
+      this.flash(hud.board, "good", `Wave ${wave - 1} cleared`, "The next wall brought more questions.", () => {
+        if (settled) return;
         startWave();
       });
     };
@@ -713,13 +752,8 @@ export class App {
       el("div", { class: "panel" }, [
         el("div", { class: "sheet" }, [
           el("h3", {}, ["Paused"]),
-          this.modePicker(),
-          this.levelPicker(),
-          this.wavePicker(),
-          this.floorPicker(),
-          this.ammoPicker(),
           this.speedPicker(),
-          el("p", { class: "note" }, ["Changing the table starts a fresh run. Speed applies now."]),
+          el("p", { class: "note" }, ["Speed applies now. Restart if you want a different table."]),
         ]),
         el("div", { class: "actions" }, [
           button("solid", "Resume", close),
@@ -994,24 +1028,14 @@ function celebrate(host: HTMLElement, streak: number): void {
   window.setTimeout(() => flash.remove(), 1000);
 }
 
-function banner(host: HTMLElement, tone: "good" | "bad", title: string, detail: string, then: () => void): void {
-  const overlay = el("div", { class: "overlay" }, [
-    el("div", { class: `panel ${tone}` }, [el("h3", {}, [title]), el("p", {}, [detail])]),
-  ]);
-  host.append(overlay);
-  window.setTimeout(() => {
-    overlay.remove();
-    then();
-  }, 1100);
-}
-
 function showQuiz(
   host: HTMLElement,
   question: TriviaQuestion,
   session: TriviaSession,
   world: BreakerWorld,
   done: (correct: boolean, effect: Effect, points: number) => void,
-): void {
+  schedule: (fn: () => void, ms: number) => void,
+): () => void {
   const drawn = orderedChoices(question);
   let locked = false;
   let left = 14;
@@ -1048,17 +1072,15 @@ function showQuiz(
         ballsInPlay: world.balls.length,
         alreadyWobbly: now < world.wobbleUntil,
         alreadyFireball: now < world.fireballUntil,
+        mode: world.mode,
       },
       Math.random,
       question.difficulty,
     );
-    window.setTimeout(
-      () => {
-        overlay.remove();
-        done(result.correct, effect, result.points);
-      },
-      result.correct ? 420 : 1150,
-    );
+    schedule(() => {
+      overlay.remove();
+      done(result.correct, effect, result.points);
+    }, result.correct ? 420 : 1150);
   };
 
   const tier = question.difficulty === 3 ? "Brutal" : question.difficulty === 2 ? "Hard" : "Easy";
@@ -1081,4 +1103,11 @@ function showQuiz(
     bar.style.width = `${(left / 14) * 100}%`;
     if (left <= 0) finish(-1);
   }, 1000);
+
+  return () => {
+    window.clearInterval(timer);
+    if (locked) return;
+    locked = true;
+    overlay.remove();
+  };
 }
