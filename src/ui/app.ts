@@ -48,7 +48,7 @@ import { clear, el } from "./html";
 const COACHED_KEY = "mindbreaker.coached";
 
 /** A question in the queue, with the promise its brick made about it. */
-interface Pending {
+export interface Pending {
   question: TriviaQuestion;
   tier: Difficulty;
 }
@@ -441,7 +441,8 @@ export class App {
       sound.win();
       const cleared = plan;
       level += 1;
-      hud.level.textContent = String(level);
+      // startLevel paints the number and the name together, so the HUD keeps
+      // reading the level you are still looking at until the next one loads.
       paintScore();
       const next = levelPlan(level, preset);
       this.flash(
@@ -868,7 +869,7 @@ const HOSTS = [
   "Answer it. The board is listening.",
 ];
 
-function showQuiz(
+export function showQuiz(
   host: HTMLElement,
   pending: Pending,
   session: TriviaSession,
