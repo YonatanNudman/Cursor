@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyEffect, attachHooks, beginSweep, CLEANUP_SPEED, createWorld, launchBalls, stepWorld } from "../src/game/breaker";
+import { applyStake, attachHooks, beginSweep, CLEANUP_SPEED, createWorld, launchBalls, MAX_LIVES, stepWorld } from "../src/game/breaker";
+import { stakeFor } from "../src/logic/stakes";
 import type { Brick } from "../src/types";
 
 describe("table balls", () => {
@@ -20,14 +21,34 @@ describe("table balls", () => {
   });
 });
 
-describe("ball rewards", () => {
-  it("dumps a storm without exceeding the live cap", () => {
+describe("question stakes", () => {
+  it("pays lives for a right answer and takes them for a wrong one", () => {
     const world = createWorld(400, 500, [], 5, 6, 1);
-    launchBalls(world);
-    applyEffect(world, { id: "ballStorm", tone: "good", headline: "x", detail: "x" }, 0);
-    expect(world.balls.length).toBe(6);
-    applyEffect(world, { id: "extraPair", tone: "good", headline: "x", detail: "x" }, 0);
-    expect(world.lives).toBe(7);
+    applyStake(world, stakeFor(3, true));
+    expect(world.lives).toBe(8);
+    applyStake(world, stakeFor(2, false));
+    expect(world.lives).toBe(6);
+  });
+
+  it("never banks past the life cap or below zero", () => {
+    const rich = createWorld(400, 500, [], MAX_LIVES, 6, 1);
+    applyStake(rich, stakeFor(3, true));
+    expect(rich.lives).toBe(MAX_LIVES);
+    const broke = createWorld(400, 500, [], 1, 6, 1);
+    applyStake(broke, stakeFor(3, false));
+    expect(broke.lives).toBe(0);
+  });
+
+  it("grows the wall on a brutal miss and armors it on a hard one", () => {
+    const wall = [brick({ id: "n", x: 40, kind: "hp", hp: 2, maxHp: 2 })];
+    const dropped = createWorld(400, 500, [...wall], 5, 6, 1);
+    const count = dropped.bricks.length;
+    applyStake(dropped, stakeFor(3, false));
+    expect(dropped.bricks.length).toBeGreaterThan(count);
+
+    const armored = createWorld(400, 500, [brick({ id: "n2", x: 40, kind: "hp", hp: 2, maxHp: 2 })], 5, 6, 1);
+    applyStake(armored, stakeFor(2, false));
+    expect(armored.bricks[0]!.hp).toBe(3);
   });
 });
 
@@ -44,16 +65,6 @@ function brick(partial: Partial<Brick> & Pick<Brick, "id" | "x" | "kind">): Bric
 }
 
 describe("quiz pile-up", () => {
-  it("lets a chip-wall flinch numbered bricks but leaves pink questions standing", () => {
-    const numbered = brick({ id: "n", x: 40, kind: "hp", hp: 2, maxHp: 2 });
-    const quiz = brick({ id: "q", x: 100, kind: "quiz" });
-    const world = createWorld(400, 500, [numbered, quiz], 5, 6, 1);
-    const broken = applyEffect(world, { id: "chipWall", tone: "good", headline: "x", detail: "x" }, 0);
-    expect(numbered.hp).toBe(1);
-    expect(quiz.alive).toBe(true);
-    expect(broken.some((item) => item.kind === "quiz")).toBe(false);
-  });
-
   it("stops the rest of the frame once a quiz pauses the table", () => {
     const first = brick({ id: "q1", x: 100, kind: "quiz" });
     const second = brick({ id: "q2", x: 220, kind: "quiz" });
@@ -114,6 +125,23 @@ describe("question leftover sweep", () => {
     const world = createWorld(400, 500, [numbered, quiz], 2, 6, 1);
     expect(beginSweep(world)).toBe(false);
     expect(world.cleanup).toBe(false);
+  });
+
+  it("will not sweep while a star brick is still up", () => {
+    const numbered = brick({ id: "n", x: 40, kind: "hp" });
+    const pick = brick({ id: "p", x: 100, kind: "pick" });
+    const world = createWorld(400, 500, [numbered, pick], 2, 6, 1);
+    expect(beginSweep(world)).toBe(false);
+  });
+
+  it("refuses to chase a brick that has reached the paddle", () => {
+    // The sweep ball homes at leftovers, so an unreachable one would hang it.
+    const world = createWorld(400, 500, [], 2, 6, 1);
+    const sunk = brick({ id: "n", x: 40, y: world.paddle.y + 4, kind: "hp" });
+    world.bricks = [sunk];
+    expect(beginSweep(world)).toBe(false);
+    sunk.y = 40;
+    expect(beginSweep(world)).toBe(true);
   });
 });
 
@@ -178,7 +206,7 @@ describe("aim and release", () => {
     const spec = {
       rows: 2, cols: 4, width: 360, height: 640,
       padding: 10, offsetY: 10, quizRatio: 0.2, minHp: 1, maxHp: 2,
-    };
+    } as const;
     const plain = createWorld(360, 640, buildLevel(spec, () => 0.5), 3, 6, 1);
     launchBalls(plain);
     const plainSpeed = Math.hypot(plain.balls[0]!.vx, plain.balls[0]!.vy);

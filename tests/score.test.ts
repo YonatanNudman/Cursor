@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { brickPoints, formatScore, waveClearBonus } from "../src/logic/score";
+import { brickPoints, formatScore } from "../src/logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../src/logic/seen";
 
 describe("points", () => {
-  it("pays quiz bricks and later waves more", () => {
+  it("pays question bricks more than plain armour, and star bricks most", () => {
     expect(brickPoints(2, "quiz")).toBeGreaterThan(brickPoints(2, "hp"));
-    expect(waveClearBonus(3, 2)).toBeGreaterThan(waveClearBonus(1, 2));
+    expect(brickPoints(2, "pick")).toBeGreaterThan(brickPoints(2, "quiz"));
     expect(formatScore(1200)).toBe("1,200");
   });
 });

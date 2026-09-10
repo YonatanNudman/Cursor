@@ -1,5 +1,7 @@
 import { aliveBricks, armorBricks, dropRow, hitBrick } from "../logic/bricks";
+import { quizColor, quizRim, tierGlyph } from "../logic/palette";
 import type { PlayMode } from "../logic/settings";
+import type { Stake } from "../logic/stakes";
 import {
   circleRectCollision,
   clamp,
@@ -7,8 +9,7 @@ import {
   paddleBounce,
   reflectVelocity,
 } from "../logic/physics";
-import type { Effect } from "../types";
-import { assertNever, type Ball, type Brick, type Paddle } from "../types";
+import { assertNever, type Ball, type Brick, type Difficulty, type Paddle, type TriviaCategory } from "../types";
 
 export interface Particle {
   x: number;
@@ -26,8 +27,6 @@ export interface BreakerHooks {
   onVolleyEnd?: () => void;
 }
 
-export type PaddleMode = "normal" | "wide" | "tiny";
-
 export interface BreakerWorld {
   width: number;
   height: number;
@@ -38,11 +37,8 @@ export interface BreakerWorld {
   speed: number;
   paused: boolean;
   cleared: boolean;
-  paddleMode: PaddleMode;
-  paddleUntil: number;
+  /** While set, balls punch straight through bricks. Used by the sweep. */
   fireballUntil: number;
-  wobbleUntil: number;
-  wobblePhase: number;
   shake: number;
   particles: Particle[];
   /** Angle being aimed while a stuck ball is held, or null when not aiming. */
@@ -79,8 +75,8 @@ function shade(hex: string, factor: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-const PADDLE = { tiny: 72, normal: 118, wide: 168 };
-const MAX_LIVES = 12;
+const PADDLE_W = 118;
+export const MAX_LIVES = 9;
 
 export function createWorld(
   width: number,
@@ -93,7 +89,7 @@ export function createWorld(
 ): BreakerWorld {
   const mode = options.mode ?? "paddle";
   const paddleW =
-    mode === "cannon" ? Math.min(56, width * 0.16) : Math.min(PADDLE.normal, width * 0.34);
+    mode === "cannon" ? Math.min(56, width * 0.16) : Math.min(PADDLE_W, width * 0.34);
   const radius = Math.max(7, width * 0.018);
   const start = mode === "cannon" ? 1 : Math.max(1, Math.min(3, tableBalls));
   const balls = Array.from({ length: start }, () => stuckBall(width / 2, height - 40, radius));
@@ -107,11 +103,7 @@ export function createWorld(
     speed,
     paused: false,
     cleared: false,
-    paddleMode: "normal",
-    paddleUntil: 0,
     fireballUntil: 0,
-    wobbleUntil: 0,
-    wobblePhase: 0,
     shake: 0,
     particles: [],
     aim: null,
@@ -140,20 +132,6 @@ function placeStuckBalls(world: BreakerWorld): void {
     ball.x = world.paddle.x + world.paddle.w / 2 + (t - 0.5) * span;
     ball.y = world.paddle.y - ball.r - 1;
   });
-}
-
-function paddleWidth(world: BreakerWorld): number {
-  const mode = world.paddleMode;
-  const raw = mode === "wide" ? PADDLE.wide : mode === "tiny" ? PADDLE.tiny : PADDLE.normal;
-  return Math.min(raw, world.width * (mode === "wide" ? 0.48 : mode === "tiny" ? 0.2 : 0.34));
-}
-
-function setPaddleMode(world: BreakerWorld, mode: PaddleMode, now: number): void {
-  const center = world.paddle.x + world.paddle.w / 2;
-  world.paddleMode = mode;
-  world.paddleUntil = now + 9000;
-  world.paddle.w = paddleWidth(world);
-  world.paddle.x = clamp(center - world.paddle.w / 2, 6, world.width - world.paddle.w - 6);
 }
 
 export function movePaddle(world: BreakerWorld, x: number): void {
@@ -283,14 +261,17 @@ function steerSweep(world: BreakerWorld): void {
  */
 export function beginSweep(world: BreakerWorld): boolean {
   if (world.cleanup || world.cleared) return false;
-  if (!aliveBricks(world.bricks).length) return false;
-  if (world.bricks.some((brick) => brick.alive && brick.kind === "quiz")) return false;
+  const alive = aliveBricks(world.bricks);
+  if (!alive.length) return false;
+  if (alive.some((brick) => brick.kind !== "hp")) return false;
+  // A brick level with the paddle cannot be reached, and the sweep ball would
+  // chase it forever. Leave those to the breach path.
+  if (alive.some((brick) => brick.y + brick.h > world.paddle.y)) return false;
   world.cleanup = true;
   world.volleyActive = false;
   world.ammoLeft = 0;
   world.aim = null;
   world.fireballUntil = Number.POSITIVE_INFINITY;
-  world.wobbleUntil = 0;
   world.speed = Math.max(world.speed, CLEANUP_SPEED);
   const keep = world.balls.find((ball) => !ball.stuck) ?? world.balls[0];
   if (!keep) {
@@ -360,12 +341,13 @@ export function spawnBalls(world: BreakerWorld, count: number): void {
 }
 
 /**
- * Enamel, not candy. Each tier is a fired-glaze colour rather than a neon, and
- * the ramp runs cool to hot as armour deepens so the wall reads at a glance.
- * Question bricks are brass because they are the thing worth hitting.
+ * Enamel, not candy. Numbered bricks run cool to hot as armour deepens.
+ * Question bricks take their hue from the subject and their intensity from the
+ * tier, so you can pick your fight before you swing at it.
  */
 export function colorForBrick(brick: Brick): string {
-  if (brick.kind === "quiz") return "#e0a83a";
+  if (brick.kind === "pick") return "#f6e2a6";
+  if (brick.kind === "quiz") return quizColor(brick.category, brick.tier ?? 1);
   if (brick.hp >= 8) return "#3d1024";
   if (brick.hp >= 7) return "#6b1d3a";
   if (brick.hp >= 6) return "#8a2a42";
@@ -381,74 +363,46 @@ export function attachHooks(world: BreakerWorld, hooks: BreakerHooks): BreakerWo
   return world;
 }
 
-export function applyEffect(world: BreakerWorld, effect: Effect, now: number): Brick[] {
-  const extraBroken: Brick[] = [];
-  switch (effect.id) {
-    case "extraLife":
-      world.lives = Math.min(MAX_LIVES, world.lives + 1);
-      break;
-    case "extraPair":
-      world.lives = Math.min(MAX_LIVES, world.lives + 2);
-      break;
-    case "multiball":
-      spawnBalls(world, 2);
-      break;
-    case "tripleBall":
-      spawnBalls(world, 3);
-      break;
-    case "ballStorm":
-      spawnBalls(world, 5);
-      break;
-    case "widePaddle":
-      setPaddleMode(world, "wide", now);
-      break;
-    case "slowBall":
-      world.speed = Math.max(3.6, world.speed * 0.78);
-      rescaleBalls(world);
-      break;
-    case "fireball":
-      world.fireballUntil = now + 8000;
-      break;
-    case "chipWall":
-      for (const brick of world.bricks) {
-        if (!brick.alive || brick.kind === "quiz") continue;
-        const result = hitBrick(brick);
-        burst(world, brick.x + brick.w / 2, brick.y + brick.h / 2, colorForBrick(brick));
-        if (result.broke) extraBroken.push(brick);
-      }
-      break;
-    case "tinyPaddle":
-      setPaddleMode(world, "tiny", now);
-      break;
-    case "fastBall":
-      world.speed = Math.min(12, world.speed * 1.18);
-      rescaleBalls(world);
-      break;
-    case "wobblyBall":
-      world.wobbleUntil = now + 8000;
-      break;
-    case "armorUp":
+/**
+ * Cashing in a question. Right answers hand back balls, wrong answers take
+ * them and, at the top tiers, thicken or grow the wall on the way out.
+ */
+export function applyStake(
+  world: BreakerWorld,
+  stake: Stake,
+  options: { tier?: Difficulty; categories?: readonly TriviaCategory[] } = {},
+): void {
+  world.lives = Math.max(0, Math.min(MAX_LIVES, world.lives + stake.lives));
+  switch (stake.punish) {
+    case "armor":
       armorBricks(world.bricks);
       break;
     case "dropRow":
-      world.bricks = dropRow(world.bricks, world.width);
+      world.bricks = dropRow(world.bricks, world.width, Math.random, options.tier ?? 1, options.categories);
       break;
-    case "loseLife":
-      world.lives = Math.max(0, world.lives - 1);
+    case "none":
       break;
     default:
-      assertNever(effect.id);
+      assertNever(stake.punish);
   }
-  world.shake = effect.tone === "bad" ? 10 : 6;
-  return extraBroken;
+  if (stake.lives > 0) confetti(world, stake.lives);
+  world.shake = stake.tone === "bad" ? 12 : 5;
 }
 
-function rescaleBalls(world: BreakerWorld): void {
-  for (const ball of world.balls) {
-    if (ball.stuck) continue;
-    const kept = keepBallSpeed(ball.vx, ball.vy, world.speed);
-    ball.vx = kept.vx;
-    ball.vy = kept.vy;
+/** Paint the win on the table itself, not just in the overlay. */
+function confetti(world: BreakerWorld, strength: number): void {
+  const count = 14 + strength * 8;
+  for (let i = 0; i < count; i += 1) {
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+    const speed = 2 + Math.random() * 4;
+    world.particles.push({
+      x: world.paddle.x + world.paddle.w / 2,
+      y: world.paddle.y - 6,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      color: ["#8fd6b4", "#f6c964", "#f4efe4"][i % 3]!,
+    });
   }
 }
 
@@ -470,13 +424,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
   if (world.paused) return;
   if (world.cleanup) steerSweep(world);
 
-  if (now > world.paddleUntil && world.paddleMode !== "normal") {
-    setPaddleMode(world, "normal", now);
-    world.paddleUntil = 0;
-  }
-
   world.shake = Math.max(0, world.shake - dt * 28);
-  world.wobblePhase += dt * 10;
   placeStuckBalls(world);
 
   world.particles = world.particles.filter((particle) => {
@@ -495,14 +443,9 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
   }
 
   const fireball = now < world.fireballUntil;
-  const wobbly = now < world.wobbleUntil;
 
   balls: for (const ball of world.balls) {
     if (ball.stuck) continue;
-
-    if (wobbly) {
-      ball.vx += Math.sin(world.wobblePhase + ball.x * 0.02) * 0.18;
-    }
 
     ball.x += ball.vx * dt * 60;
     ball.y += ball.vy * dt * 60;
@@ -633,20 +576,25 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
     ctx.stroke();
     ctx.lineWidth = 1;
 
-    if (brick.kind === "quiz") {
+    if (brick.kind !== "hp") {
       roundRect(ctx, brick.x, brick.y, brick.w, brick.h, radius);
-      ctx.strokeStyle = "rgba(246,201,100,0.85)";
+      ctx.strokeStyle =
+        brick.kind === "pick" ? "rgba(255,255,255,0.95)" : quizRim(brick.category, brick.tier ?? 1);
+      ctx.lineWidth = brick.tier === 3 || brick.kind === "pick" ? 2.4 : 1.2;
       ctx.stroke();
+      ctx.lineWidth = 1;
     }
 
+    const glyph =
+      brick.kind === "pick" ? "\u2605" : brick.kind === "quiz" ? tierGlyph(brick.tier ?? 1) : String(brick.hp);
     ctx.fillStyle = "rgba(20,12,24,0.82)";
     ctx.font =
-      brick.kind === "quiz"
-        ? `800 ${Math.max(13, Math.round(brick.h * 0.56))}px ${MONO}`
-        : `600 ${Math.max(11, Math.round(brick.h * 0.44))}px ${MONO}`;
+      brick.kind === "hp"
+        ? `600 ${Math.max(11, Math.round(brick.h * 0.44))}px ${MONO}`
+        : `800 ${Math.max(12, Math.round(brick.h * (glyph.length > 1 ? 0.44 : 0.56)))}px ${MONO}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(brick.kind === "quiz" ? "?" : String(brick.hp), brick.x + brick.w / 2, brick.y + brick.h / 2 + 0.5);
+    ctx.fillText(glyph, brick.x + brick.w / 2, brick.y + brick.h / 2 + 0.5);
   }
 
   // Comet trail behind the lead ball.
@@ -699,7 +647,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: BreakerWorld, no
   for (const ball of world.balls) {
     ctx.beginPath();
     ctx.fillStyle = now < world.fireballUntil ? "#ff8a4a" : "#f4efe4";
-    ctx.shadowColor = now < world.wobbleUntil ? "#c4525f" : "#e0a83a";
+    ctx.shadowColor = "#e0a83a";
     ctx.shadowBlur = 12;
     ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fill();

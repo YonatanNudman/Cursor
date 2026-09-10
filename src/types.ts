@@ -21,7 +21,8 @@ export const TRIVIA_CATEGORIES = [
   "General",
 ] as const;
 
-export type BrickKind = "hp" | "quiz";
+/** "pick" bricks let you choose the next category and how much to risk. */
+export type BrickKind = "hp" | "quiz" | "pick";
 
 export type TriviaCategory = (typeof TRIVIA_CATEGORIES)[number];
 
@@ -37,30 +38,6 @@ export interface TriviaQuestion {
   difficulty: Difficulty;
 }
 
-export type EffectKind =
-  | "extraLife"
-  | "extraPair"
-  | "multiball"
-  | "tripleBall"
-  | "ballStorm"
-  | "widePaddle"
-  | "slowBall"
-  | "fireball"
-  | "chipWall"
-  | "tinyPaddle"
-  | "fastBall"
-  | "wobblyBall"
-  | "armorUp"
-  | "dropRow"
-  | "loseLife";
-
-export interface Effect {
-  id: EffectKind;
-  tone: "good" | "bad";
-  headline: string;
-  detail: string;
-}
-
 export interface Brick {
   id: string;
   x: number;
@@ -71,6 +48,10 @@ export interface Brick {
   maxHp: number;
   kind: BrickKind;
   alive: boolean;
+  /** Question bricks carry the tier they will ask, which sets their colour. */
+  tier?: Difficulty;
+  /** Question bricks carry their subject, which sets their hue. */
+  category?: TriviaCategory;
 }
 
 export interface Ball {

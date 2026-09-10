@@ -46,8 +46,8 @@ describe("shuffle", () => {
 describe("trivia session", () => {
   it("rotates sections instead of stacking one category", () => {
     const session = createTriviaSession(questions, () => 0);
-    const first = drawQuestion(session, 1, () => 0);
-    const second = drawQuestion(session, 1, () => 0);
+    const first = drawQuestion(session, {}, () => 0);
+    const second = drawQuestion(session, {}, () => 0);
     expect(first?.category).not.toBe(second?.category);
   });
 
@@ -55,13 +55,13 @@ describe("trivia session", () => {
     const session = createTriviaSession(questions, () => 0.2);
     const seen = new Set<string>();
     for (let i = 0; i < questions.length; i += 1) {
-      const next = drawQuestion(session, 1, () => 0.2);
+      const next = drawQuestion(session, {}, () => 0.2);
       expect(next).not.toBeNull();
       expect(seen.has(next!.id)).toBe(false);
       seen.add(next!.id);
     }
     expect(seen.size).toBe(questions.length);
-    const again = drawQuestion(session, 1, () => 0.2);
+    const again = drawQuestion(session, {}, () => 0.2);
     expect(again).not.toBeNull();
   });
 
@@ -110,30 +110,31 @@ describe("question bank", () => {
   });
 });
 
-describe("difficulty by wave", () => {
-  it("warms up early and bites later", async () => {
-    const { tiersForWave } = await import("../src/logic/trivia");
-    expect(tiersForWave(1)[0]).toBe(1);
-    expect(tiersForWave(12)[0]).toBe(3);
-    expect(tiersForWave(1, 3)).toEqual([3]);
+describe("drawing what the brick promised", () => {
+  it("honours the tier a brick advertised", () => {
+    for (const tier of [1, 2, 3] as const) {
+      const session = createTriviaSession(QUESTIONS, () => 0.3);
+      expect(drawQuestion(session, { tier }, () => 0.3)?.difficulty).toBe(tier);
+    }
   });
 
-  it("draws an easy question on wave 1 and a hard one deep in a run", () => {
-    const bank = QUESTIONS;
-    const early = createTriviaSession(bank, () => 0.3);
-    expect(drawQuestion(early, 1, () => 0.3)?.difficulty).toBe(1);
-    const late = createTriviaSession(bank, () => 0.3);
-    expect(drawQuestion(late, 12, () => 0.3)?.difficulty).toBe(3);
+  it("honours a chosen subject and tier together", () => {
+    const session = createTriviaSession(QUESTIONS, () => 0.4);
+    const drawn = drawQuestion(session, { tier: 3, category: "Science" }, () => 0.4);
+    expect(drawn?.category).toBe("Science");
+    expect(drawn?.difficulty).toBe(3);
   });
 
-  it("honours a category filter and a brutal question floor", async () => {
-    const { filterBank, createTriviaSession, drawQuestion } = await import("../src/logic/trivia");
-    const science = filterBank(QUESTIONS, ["Science"], 0);
-    expect(science.every((question) => question.category === "Science")).toBe(true);
-    const brutal = filterBank(QUESTIONS, [], 3);
-    expect(brutal.every((question) => question.difficulty >= 3)).toBe(true);
-    const session = createTriviaSession(brutal, () => 0.2);
-    expect(drawQuestion(session, 1, () => 0.2, 3)?.difficulty).toBe(3);
+  it("falls back to the subject when that tier is exhausted", () => {
+    const onlyEasy: TriviaQuestion[] = [{ ...questions[0]!, difficulty: 1 }];
+    const session = createTriviaSession(onlyEasy, () => 0);
+    const drawn = drawQuestion(session, { tier: 3, category: "Science" }, () => 0);
+    expect(drawn?.category).toBe("Science");
+  });
+
+  it("still returns something when nothing matches", () => {
+    const session = createTriviaSession(questions, () => 0);
+    expect(drawQuestion(session, { tier: 3, category: "Myths" }, () => 0)).not.toBeNull();
   });
 
   it("pays more for a harder correct answer", () => {

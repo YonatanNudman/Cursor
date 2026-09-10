@@ -1,8 +1,9 @@
 import { QUESTIONS } from "../data/questions";
 import {
   AIM_UP,
+  MAX_LIVES,
   aimAt,
-  applyEffect,
+  applyStake,
   attachHooks,
   beginSweep,
   clearAim,
@@ -14,81 +15,47 @@ import {
   stepWorld,
   type BreakerWorld,
 } from "../game/breaker";
-import { sound, type GoofKind } from "../audio";
-import { aliveBricks, buildLevel, descendBricks, onlyNumbersLeft, waveSpec } from "../logic/bricks";
-import { pickEffect } from "../logic/effects";
+import { sound } from "../audio";
+import { buildLevel, descendBricks, liftBricks, onlyNumbersLeft, specForPlan } from "../logic/bricks";
 import { QUIZ_COOLDOWN_MS, canQueueQuiz } from "../logic/quiz-gate";
-import {
-  brickPoints,
-  formatScore,
-  isMilestone,
-  streakLabel,
-  streakMultiplier,
-  waveClearBonus,
-} from "../logic/score";
-import {
-  beatsRecord,
-  claimWorldRecord,
-  formatHolder,
-  formatReach,
-  hasHolder,
-  loadWorldRecord,
-  readLocalRecord,
-  type WorldRecord,
-} from "../logic/record";
+import { levelBonus, levelBrief, levelPlan, type LevelPlan } from "../logic/levels";
+import { categoryChip, tierGlyph } from "../logic/palette";
+import { PICK_TIERS, offerCategories, rememberPick } from "../logic/picks";
+import { TIER_LABELS, stakeFor, tierReward, type Stake } from "../logic/stakes";
+import { brickPoints, formatScore, isMilestone, streakLabel, streakMultiplier } from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
 import {
-  CANNON_AMMO,
   PLAY_SPEEDS,
-  QUESTION_FLOORS,
-  START_WAVES,
-  floorHint,
-  floorLabel,
   modeHint,
   modeLabel,
   readSettings,
-  toggleCategory,
   writeSettings,
-  type CannonAmmo,
   type PlaySpeed,
-  type QuestionFloor,
   type RunSettings,
-  type StartWave,
 } from "../logic/settings";
 import { allDifficulties, difficulty, type DifficultyPreset } from "../logic/difficulty";
 import {
   createTriviaSession,
   drawQuestion,
-  filterBank,
   gradeAnswer,
   orderedChoices,
+  type QuestionWant,
   type TriviaSession,
 } from "../logic/trivia";
-import {
-  TRIVIA_CATEGORIES,
-  assertNever,
-  type Effect,
-  type ScoreCard,
-  type Screen,
-  type TriviaQuestion,
-} from "../types";
+import { assertNever, type Difficulty, type ScoreCard, type Screen, type TriviaCategory, type TriviaQuestion } from "../types";
 import { clear, el } from "./html";
 
 const COACHED_KEY = "mindbreaker.coached";
 
-const HOSTS = [
-  "The wall wants a word with you.",
-  "Pop quiz from a broken brick.",
-  "Don't whiff this one.",
-  "The table just got academic.",
-  "Answer it. The board is listening.",
-];
+/** A question in the queue, with the promise its brick made about it. */
+interface Pending {
+  question: TriviaQuestion;
+  tier: Difficulty;
+}
 
 export class App {
   private screen: Screen = "setup";
   private best = readBest(window.localStorage);
-  private record: WorldRecord = readLocalRecord(window.localStorage);
-  private claimedThisRun = false;
   private settings: RunSettings = readSettings(window.localStorage);
   private playSpeed: PlaySpeed = readSettings(window.localStorage).playSpeed;
   private result: ScoreCard | null = null;
@@ -121,7 +88,14 @@ export class App {
     return id;
   }
 
-  private flash(host: HTMLElement, tone: "good" | "bad", title: string, detail: string, then: () => void): void {
+  private flash(
+    host: HTMLElement,
+    tone: "good" | "bad",
+    title: string,
+    detail: string,
+    then: () => void,
+    ms = 1100,
+  ): void {
     const overlay = el("div", { class: "overlay" }, [
       el("div", { class: `panel ${tone}` }, [el("h3", {}, [title]), el("p", {}, [detail])]),
     ]);
@@ -129,7 +103,7 @@ export class App {
     this.later(() => {
       overlay.remove();
       then();
-    }, 1100);
+    }, ms);
   }
 
   private teardown(): void {
@@ -153,14 +127,12 @@ export class App {
     switch (this.screen) {
       case "setup":
         this.renderSetup();
-        void this.refreshRecord();
         break;
       case "play":
         this.playRun();
         break;
       case "result":
         this.renderResult();
-        void this.refreshRecord();
         break;
       default:
         assertNever(this.screen);
@@ -176,21 +148,13 @@ export class App {
       el("div", { class: "screen setup" }, [
         el("div", { class: "sheet" }, [
           el("p", { class: "kicker" }, ["Mindbreaker"]),
-          el("h1", { class: "title" }, ["Pick a", el("span", {}, [" table"])]),
+          el("h1", { class: "title" }, ["Answer or", el("span", {}, [" lose a ball"])]),
           el("p", { class: "lede" }, [
-            "Cannon fires a magazine, then the wall drops. Paddle keeps the old fight. Harder questions pay more and thicken the numbered bricks.",
+            "Coloured bricks are questions. The hue is the subject, the glyph is the price: ? costs one ball, ?? costs two, !? costs three. Star bricks let you choose.",
           ]),
-          el("p", { class: "best" }, [
-            formatScore(this.best),
-            el("small", {}, ["Best"]),
-          ]),
-          this.recordPlaque(),
+          el("p", { class: "best" }, [formatScore(this.best), el("small", {}, ["Best"])]),
           this.modePicker(),
           this.levelPicker(),
-          this.wavePicker(),
-          this.floorPicker(),
-          this.ammoPicker(),
-          this.categoryPicker(),
         ]),
         el("div", { class: "actions" }, [button("solid cta", "Play", () => this.go("play"))]),
       ]),
@@ -201,92 +165,101 @@ export class App {
     const preset = this.preset();
     const settings = this.settings;
     this.playSpeed = settings.playSpeed;
-    let wave = settings.startWave;
+    let level = 1;
+    let plan: LevelPlan = levelPlan(1, preset);
     let score = 0;
     let lives: number = preset.lives;
     let settled = false;
-    const bank = filterBank(QUESTIONS, settings.categories, settings.questionFloor);
-    const session = createTriviaSession(preferFresh(bank, readSeen(window.localStorage)));
+    const session = createTriviaSession(preferFresh(QUESTIONS, readSeen(window.localStorage)));
     const askedThisRun: string[] = [];
-    const quizQueue: TriviaQuestion[] = [];
+    const queue: Pending[] = [];
+    let recentPicks: TriviaCategory[] = [];
     let asking = false;
-    let wavePending = false;
+    let levelPending = false;
     let quizReadyAt = 0;
 
     const hud = this.mountPlay();
+
     const paintAmmo = (world: BreakerWorld): void => {
       if (!hud.ammo) return;
       hud.ammo.textContent = String(world.ammoLeft);
     };
-
-    this.claimedThisRun = false;
+    const paintScore = (): void => {
+      hud.score.textContent = formatScore(score);
+      hud.streak.textContent = String(session.streak);
+      paintCombo(hud.combo, session.streak);
+    };
 
     const finish = (title: string, detail: string): void => {
       if (settled) return;
       settled = true;
       rememberSeen(window.localStorage, askedThisRun);
       this.best = writeBest(window.localStorage, score);
-      this.result = {
-        score,
-        wave,
-        correct: session.correct,
-        missed: session.missed,
-        title,
-        detail,
-      };
+      this.result = { score, wave: level, correct: session.correct, missed: session.missed, title, detail };
+      sound.lose();
       this.go("result");
     };
     this.endRun = finish;
 
-    const startWave = (): void => {
+    /**
+     * Buying the wall back off the floor. The bill is the level's drop rate, so
+     * a deep level where the wall falls five rows a volley lets you survive one
+     * breach, not ten.
+     */
+    const breach = (world: BreakerWorld): boolean => {
+      const cost = plan.descent;
+      lives -= cost;
+      world.lives = Math.max(0, lives);
+      paintLives(hud.lives, world.lives);
+      if (world.lives <= 0) {
+        lives = 0;
+        world.paused = true;
+        finish("The wall reached the floor", `Level ${level} — ${plan.name}. ${session.correct} right, ${session.missed} wrong.`);
+        return false;
+      }
+      liftBricks(world.bricks, 2);
+      world.shake = 16;
+      pulse(hud.board, "bad");
+      floatPoints(hud.board, `BREACH \u2212${cost} LIFE${cost === 1 ? "" : "S"}`, "bad");
+      sound.wrong();
+      return true;
+    };
+
+    const startLevel = (): void => {
       this.stopLoop?.();
       this.unbind?.();
       const frame = hud.board.getBoundingClientRect();
       const width = Math.max(320, Math.floor(frame.width));
       const height = Math.max(360, Math.floor(frame.height));
-      const spec = waveSpec(
-        wave,
-        width,
-        height,
-        preset,
-        settings.questionFloor,
-        settings.mode,
-        settings.cannonAmmo,
-      );
-      const wavePush = 0.2 + preset.weight * 0.05;
+      plan = levelPlan(level, preset, width);
       const world = attachHooks(
         createWorld(
           width,
           height,
-          buildLevel(spec),
+          buildLevel(specForPlan(plan, width, height)),
           lives,
-          (5.2 + wave * wavePush) * preset.ballSpeed,
-          preset.tableBalls,
-          { mode: settings.mode, magazine: settings.cannonAmmo },
+          5.6 * plan.ballSpeed,
+          1,
+          { mode: settings.mode, magazine: plan.magazine },
         ),
         {
           onBrickHit: (brick, broke) => {
             if (!broke) {
               sound.brick();
-              gagPop(hud.board, sound.maybeGoof(0.04));
               return;
             }
-            score +=
-              brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
-            hud.score.textContent = formatScore(score);
-            hud.streak.textContent = String(session.streak);
-            paintCombo(hud.combo, session.streak);
+            score += brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
+            paintScore();
             sound.break();
-            gagPop(hud.board, sound.maybeGoof(0.08));
+            sound.maybeGoof(0.06);
+            if (brick.kind === "pick") {
+              openPick(world);
+              return;
+            }
             if (brick.kind === "quiz") {
               const ready = performance.now() >= quizReadyAt;
-              if (canQueueQuiz(asking, quizQueue.length, ready)) {
-                const question = drawQuestion(session, wave, Math.random, settings.questionFloor);
-                if (question) {
-                  askedThisRun.push(question.id);
-                  quizQueue.push(question);
-                  maybeAsk(world);
-                }
+              if (canQueueQuiz(asking, queue.length, ready)) {
+                enqueue(world, { tier: brick.tier, category: brick.category });
               }
             }
             trySweep(world);
@@ -294,74 +267,133 @@ export class App {
           onBallLost: () => {
             if (settled || world.cleared) return;
             sound.miss();
-            gagPop(hud.board, sound.maybeGoof(0.35));
+            sound.maybeGoof(0.3);
             lives = world.lives;
-            paintBalls(hud.balls, lives);
+            paintLives(hud.lives, lives);
+            pulse(hud.board, "bad");
             if (world.lives <= 0) {
               world.paused = true;
-              finish("Out of balls", `You reached wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
+              finish("Out of lives", `Level ${level} — ${plan.name}. ${session.correct} right, ${session.missed} wrong.`);
             }
           },
           onBoardClear: () => {
-            wavePending = true;
+            levelPending = true;
             world.paused = true;
-            if (!asking) finishWave(world);
+            if (!asking) finishLevel(world);
           },
           onVolleyEnd: () => {
             paintAmmo(world);
-            if (world.cleared || wavePending) {
-              if (!asking) finishWave(world);
+            if (world.cleared || levelPending) {
+              if (!asking) finishLevel(world);
               return;
             }
             if (trySweep(world)) return;
-            const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6);
+            const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6, plan.descent);
             world.shake = 10;
             floatPoints(hud.board, "WALL DROPS", "bad");
-            gagPop(hud.board, sound.maybeGoof(0.4));
-            if (reachedFloor) {
-              world.paused = true;
-              finish("The wall reached the floor", `Wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
-              return;
-            }
-            restockCannon(world, settings.cannonAmmo);
+            sound.maybeGoof(0.3);
+            if (reachedFloor && !breach(world)) return;
+            restockCannon(world, plan.magazine);
             paintAmmo(world);
           },
         },
       );
       lives = world.lives;
       this.world = world;
-      paintBalls(hud.balls, lives);
+      paintLives(hud.lives, lives);
       paintAmmo(world);
-      hud.wave.textContent = String(wave);
+      hud.level.textContent = String(level);
+      hud.tag.textContent = plan.boss ? `${plan.name} · BOSS` : plan.name;
+      hud.tag.className = plan.boss ? "level-tag boss" : "level-tag";
       this.bindBreaker(hud.canvas, hud.board, world, paintAmmo);
     };
 
-    const maybeAsk = (world: BreakerWorld): void => {
-      if (asking || quizQueue.length === 0) return;
-      const question = quizQueue.shift();
+    const enqueue = (world: BreakerWorld, want: QuestionWant): void => {
+      const question = drawQuestion(session, want);
       if (!question) return;
+      askedThisRun.push(question.id);
+      queue.push({ question, tier: want.tier ?? question.difficulty });
+      maybeAsk(world);
+    };
+
+    /** Star brick: choose the subject, then choose how much to risk. */
+    const openPick = (world: BreakerWorld): void => {
+      if (asking) return;
       asking = true;
       this.asking = true;
       world.paused = true;
-      this.quizCancel = showQuiz(
-        hud.board,
-        question,
-        session,
-        world,
-        (correct, effect, points) => {
-        const before = score;
-        score += points * preset.weight;
-        const broken = applyEffect(world, effect, performance.now());
-        for (const brick of broken) {
-          score +=
-            brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
+      const overlay = el("div", { class: "overlay" });
+      const body = el("div", { class: "sheet" });
+      const close = (want: QuestionWant | null): void => {
+        overlay.remove();
+        asking = false;
+        this.asking = false;
+        if (want) {
+          enqueue(world, want);
+          if (!asking && !this.paused) world.paused = false;
+          return;
         }
+        if (!this.paused) world.paused = false;
+      };
+
+      const askTier = (category: TriviaCategory): void => {
+        recentPicks = rememberPick(recentPicks, category);
+        clear(body);
+        body.append(
+          el("p", { class: "meta" }, ["How much are you betting?"]),
+          el("h3", {}, [category]),
+          el(
+            "div",
+            { class: "pick-grid" },
+            PICK_TIERS.map((tier) => {
+              const card = button(`pick tier-${tier}`, "", () => close({ tier, category }));
+              card.append(
+                el("b", {}, [`${tierGlyph(tier)} ${TIER_LABELS[tier]}`]),
+                el("small", {}, [tierReward(tier)]),
+              );
+              return card;
+            }),
+          ),
+        );
+      };
+
+      const offers = offerCategories(recentPicks);
+      body.append(
+        el("p", { class: "meta" }, ["Star brick \u2605 \u00b7 pick your subject"]),
+        el("h3", {}, ["Three on offer"]),
+        el(
+          "div",
+          { class: "pick-grid" },
+          offers.map((category) => {
+            const card = button("pick", "", () => askTier(category));
+            card.style.setProperty("--hue", categoryChip(category));
+            card.append(el("b", {}, [category]));
+            return card;
+          }),
+        ),
+        el("p", { class: "note" }, ["Subjects you just played are held back, so the run keeps moving."]),
+      );
+      overlay.append(el("div", { class: "panel" }, [body]));
+      hud.board.append(overlay);
+      sound.letter();
+    };
+
+    const maybeAsk = (world: BreakerWorld): void => {
+      if (asking || queue.length === 0) return;
+      const next = queue.shift();
+      if (!next) return;
+      asking = true;
+      this.asking = true;
+      world.paused = true;
+      this.quizCancel = showQuiz(hud.board, next, session, (correct, stake) => {
+        const before = score;
+        score += stake.score * preset.weight;
+        applyStake(world, stake, { tier: next.tier });
         const gained = score - before;
         lives = world.lives;
-        paintBalls(hud.balls, lives);
-        hud.score.textContent = formatScore(score);
-        hud.streak.textContent = String(session.streak);
-        paintCombo(hud.combo, session.streak);
+        paintLives(hud.lives, lives);
+        paintScore();
+        pulse(hud.board, stake.tone);
         if (correct) {
           floatPoints(hud.board, `+${formatScore(gained)}`, "good");
           if (isMilestone(session.streak)) celebrate(hud.board, session.streak);
@@ -369,59 +401,65 @@ export class App {
         if (world.lives <= 0) {
           asking = false;
           this.asking = false;
-          finish("The question took the last ball", `${session.correct} right, ${session.missed} wrong.`);
+          finish("The question took your last life", `${session.correct} right, ${session.missed} wrong.`);
           return;
         }
-        this.flash(hud.board, effect.tone, effect.headline, effect.detail, () => {
+        this.flash(hud.board, stake.tone, stake.headline, stake.detail, () => {
           asking = false;
           this.asking = false;
           this.quizCancel = null;
           quizReadyAt = performance.now() + QUIZ_COOLDOWN_MS;
-          if (wavePending) {
-            finishWave(world);
+          if (levelPending) {
+            finishLevel(world);
             return;
           }
           if (!this.paused) world.paused = false;
           if (trySweep(world)) return;
           maybeAsk(world);
         });
-        void correct;
-        },
-        (fn, ms) => {
-          this.later(fn, ms);
-        },
-      );
+      }, (fn, ms) => {
+        this.later(fn, ms);
+      });
     };
 
     const trySweep = (world: BreakerWorld): boolean => {
-      if (asking || this.paused || world.cleared || wavePending) return false;
+      if (asking || this.paused || world.cleared || levelPending) return false;
       if (!onlyNumbersLeft(world.bricks)) return false;
       if (!beginSweep(world)) return false;
       paintAmmo(world);
       floatPoints(hud.board, "BURN THE REST", "good");
-      gagPop(hud.board, sound.maybeGoof(0.55));
+      sound.maybeGoof(0.4);
       return true;
     };
 
-    const finishWave = (world: BreakerWorld): void => {
-      if (!wavePending || asking) return;
-      wavePending = false;
-      quizQueue.length = 0;
+    const finishLevel = (world: BreakerWorld): void => {
+      if (!levelPending || asking) return;
+      levelPending = false;
+      queue.length = 0;
       world.paused = true;
-      score += waveClearBonus(wave, world.lives) * preset.weight;
-      lives = preset.lifePerWave ? Math.min(12, world.lives + 1) : world.lives;
+      score += levelBonus(plan, world.lives) * preset.weight;
+      lives = preset.lifePerWave ? Math.min(MAX_LIVES, world.lives + 1) : world.lives;
       sound.win();
-      gagPop(hud.board, sound.maybeGoof(0.45));
-      wave += 1;
-      hud.wave.textContent = String(wave);
-      hud.score.textContent = formatScore(score);
-      this.flash(hud.board, "good", `Wave ${wave - 1} cleared`, "The next wall brought more questions.", () => {
-        if (settled) return;
-        startWave();
-      });
+      const cleared = plan;
+      level += 1;
+      hud.level.textContent = String(level);
+      paintScore();
+      const next = levelPlan(level, preset);
+      this.flash(
+        hud.board,
+        "good",
+        `${cleared.name} cleared`,
+        `Level ${level}: ${next.name}. ${levelBrief(next)}`,
+        () => {
+          if (settled) return;
+          startLevel();
+        },
+        1500,
+      );
     };
 
-    startWave();
+    startLevel();
+    this.flash(hud.board, "good", plan.name, levelBrief(plan), () => undefined, 1400);
 
     if (!localStorage.getItem(COACHED_KEY)) {
       const cannon = settings.mode === "cannon";
@@ -429,7 +467,7 @@ export class App {
         el("b", {}, [cannon ? "Hold to aim the cannon" : "Hold to aim"]),
         el("small", {}, [
           cannon
-            ? "Release to empty the magazine. Rows drop when the volley ends."
+            ? "Release to empty the magazine. The wall drops when it runs dry."
             : "Release to fire. Then drag to move the paddle.",
         ]),
       ]);
@@ -451,43 +489,38 @@ export class App {
     board: HTMLElement;
     canvas: HTMLCanvasElement;
     score: HTMLElement;
-    wave: HTMLElement;
+    level: HTMLElement;
     streak: HTMLElement;
     combo: HTMLElement;
-    balls: HTMLElement;
+    lives: HTMLElement;
     ammo: HTMLElement | null;
+    tag: HTMLElement;
   } {
     const score = el("b", {}, ["0"]);
-    const wave = el("b", {}, [String(this.settings.startWave)]);
+    const level = el("b", {}, ["1"]);
     const streak = el("b", {}, ["0"]);
     const combo = el("div", { class: "combo" });
-    const balls = el("div", { class: "balls" });
-    const ammo = this.settings.mode === "cannon" ? el("b", {}, [String(this.settings.cannonAmmo)]) : null;
+    const lives = el("div", { class: "lives" });
+    const ammo = this.settings.mode === "cannon" ? el("b", {}, ["0"]) : null;
+    const tag = el("span", { class: "level-tag" }, ["Warm Up"]);
     const canvas = el("canvas");
     const board = el("div", { class: "board" }, [canvas]);
     this.boardHost = board;
     const hudBits = [
       el("div", { class: "stat" }, ["Score", score]),
-      el("div", { class: "stat" }, ["Wave", wave]),
+      el("div", { class: "stat" }, ["Level", level]),
       el("div", { class: "stat" }, ["Streak", streak]),
     ];
-    if (ammo) hudBits.push(el("div", { class: "stat" }, ["Ammo", ammo]));
-    hudBits.push(combo, balls);
-    const footKids: HTMLElement[] = [
-      el("span", { class: "level-tag" }, [`${modeLabel(this.settings.mode)} · ${this.preset().label}`]),
-    ];
-    if (this.settings.mode === "cannon") {
-      footKids.push(this.speedPicker());
-    }
-    footKids.push(button("ghost tiny", "Pause", () => this.openPause()));
+    if (ammo) hudBits.push(el("div", { class: "stat" }, ["Shots", ammo]));
+    hudBits.push(combo, lives);
     this.root.append(
       el("div", { class: "play" }, [
         el("div", { class: "hud" }, hudBits),
         board,
-        el("div", { class: "foot" }, footKids),
+        el("div", { class: "foot" }, [tag, button("ghost tiny", "Pause", () => this.openPause())]),
       ]),
     );
-    return { board, canvas, score, wave, streak, combo, balls, ammo };
+    return { board, canvas, score, level, streak, combo, lives, ammo, tag };
   }
 
   private renderResult(): void {
@@ -499,135 +532,28 @@ export class App {
     const asked = card.correct + card.missed;
     const accuracy = asked > 0 ? Math.round((card.correct / asked) * 100) : 0;
     const beat = card.score >= this.best && card.score > 0;
-    const worldBeat = beatsRecord(card.score, this.record);
-    const kicker = this.claimedThisRun
-      ? "You hold it"
-      : worldBeat
-        ? "New world record"
-        : beat
-          ? "New best"
-          : "Run over";
-    const kids: HTMLElement[] = [
-      el("p", { class: "kicker" }, [kicker]),
-      el("h2", {}, [card.title]),
-      el("p", {}, [card.detail]),
-      el("p", { class: "big" }, [formatScore(card.score)]),
-      el("div", { class: "tally" }, [
-        stat("Wave", String(card.wave)),
-        stat("Right", String(card.correct)),
-        stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
-        stat("Best", formatScore(this.best)),
-      ]),
-      this.recordPlaque(),
-    ];
-    const claim = this.claimBox(card);
-    if (claim) kids.push(claim);
-    kids.push(
-      this.modePicker(),
-      this.levelPicker(),
-      this.wavePicker(),
-      this.floorPicker(),
-      this.ammoPicker(),
-    );
     this.root.append(
       el("div", { class: "screen result" }, [
-        el("div", { class: "sheet" }, kids),
+        el("div", { class: "sheet" }, [
+          el("p", { class: "kicker" }, [beat ? "New best" : "Run over"]),
+          el("h2", {}, [card.title]),
+          el("p", {}, [card.detail]),
+          el("p", { class: "big" }, [formatScore(card.score)]),
+          el("div", { class: "tally" }, [
+            stat("Level", String(card.wave)),
+            stat("Right", String(card.correct)),
+            stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
+            stat("Best", formatScore(this.best)),
+          ]),
+          this.modePicker(),
+          this.levelPicker(),
+        ]),
         el("div", { class: "actions" }, [
           button("solid cta", "Play again", () => this.go("play")),
           button("ghost", "Change table", () => this.go("setup")),
         ]),
       ]),
     );
-  }
-
-  private async refreshRecord(): Promise<void> {
-    this.record = await loadWorldRecord(window.localStorage);
-    this.paintRecordPlaques();
-    if (this.screen !== "result" || !this.result || this.claimedThisRun) return;
-    if (beatsRecord(this.result.score, this.record)) return;
-    const stale = this.root.querySelector(".claim");
-    if (!stale) return;
-    stale.replaceWith(
-      el("p", { class: "claim-note" }, [`${formatHolder(this.record)} already holds it.`]),
-    );
-  }
-
-  private paintRecordPlaques(): void {
-    for (const node of this.root.querySelectorAll<HTMLElement>(".world-plaque")) {
-      paintWorldPlaque(node, this.record);
-    }
-  }
-
-  private recordPlaque(): HTMLElement {
-    const node = el("div", { class: "world-plaque" });
-    paintWorldPlaque(node, this.record);
-    return node;
-  }
-
-  private claimBox(card: ScoreCard): HTMLElement | null {
-    if (this.claimedThisRun) {
-      return el("p", { class: "claim-note held" }, ["Your name is on the table."]);
-    }
-    if (!beatsRecord(card.score, this.record)) return null;
-    const box = el("div", { class: "claim" });
-    const input = el("input", {
-      class: "name-in",
-      type: "text",
-      maxlength: "16",
-      placeholder: "Write your name",
-      autocomplete: "nickname",
-      enterkeyhint: "done",
-      spellcheck: "false",
-      "aria-label": "World record name",
-    });
-    const note = el("p", { class: "claim-note" }, ["You passed it. Put your name on the table."]);
-    let busy = false;
-    const submit = async (): Promise<void> => {
-      if (busy) return;
-      busy = true;
-      go.disabled = true;
-      const result = await claimWorldRecord(window.localStorage, {
-        name: input.value,
-        score: card.score,
-        wave: card.wave,
-        correct: card.correct,
-      });
-      this.record = result.record;
-      switch (result.reason) {
-        case "name":
-          note.textContent = "Need a name to claim it.";
-          input.focus();
-          busy = false;
-          go.disabled = false;
-          return;
-        case "beaten":
-          note.textContent = `${formatHolder(result.record)} already holds ${formatScore(result.record.score)}.`;
-          this.paintRecordPlaques();
-          busy = false;
-          go.disabled = false;
-          return;
-        case "ok":
-          this.claimedThisRun = true;
-          this.paintRecordPlaques();
-          box.replaceWith(el("p", { class: "claim-note held" }, ["Your name is on the table."]));
-          const headline = this.root.querySelector(".result .kicker");
-          if (headline) headline.textContent = "You hold it";
-          return;
-        default:
-          assertNever(result.reason);
-      }
-    };
-    const go = button("solid", "Claim the record", () => {
-      void submit();
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void submit();
-      }
-    });
-    box.append(note, input, go);
-    return box;
   }
 
   private modePicker(): HTMLElement {
@@ -639,7 +565,6 @@ export class App {
         const chip = button(on ? "level on" : "level", "", () => {
           this.patchSettings({ mode });
           paint();
-          this.refreshSetupExtras();
         });
         chip.append(el("b", {}, [modeLabel(mode)]), el("small", {}, [modeHint(mode)]));
         row.append(chip);
@@ -647,14 +572,6 @@ export class App {
     };
     paint();
     return row;
-  }
-
-  private refreshSetupExtras(): void {
-    if (this.screen !== "setup" && this.screen !== "result") return;
-    const ammo = this.root.querySelector(".ammo-picker");
-    if (ammo instanceof HTMLElement) {
-      ammo.style.display = this.settings.mode === "cannon" ? "" : "none";
-    }
   }
 
   private levelPicker(): HTMLElement {
@@ -675,66 +592,11 @@ export class App {
     return row;
   }
 
-  private floorPicker(): HTMLElement {
-    const row = el("div", { class: "levels floors" });
-    const paint = (): void => {
-      clear(row);
-      for (const floor of QUESTION_FLOORS) {
-        const on = floor === this.settings.questionFloor;
-        const chip = button(on ? "level on" : "level", "", () => {
-          this.patchSettings({ questionFloor: floor });
-          paint();
-        });
-        chip.append(el("b", {}, [floorLabel(floor)]), el("small", {}, [floorHint(floor)]));
-        row.append(chip);
-      }
-    };
-    paint();
-    return el("div", { class: "picker-block" }, [el("span", { class: "picker-label" }, ["Questions"]), row]);
-  }
-
-  private wavePicker(): HTMLElement {
-    return this.picker("Start wave", START_WAVES, this.settings.startWave, (value: StartWave) => {
-      this.patchSettings({ startWave: value });
-    }, (value) => `${value}`);
-  }
-
-  private ammoPicker(): HTMLElement {
-    const wrap = this.picker("Cannon magazine", CANNON_AMMO, this.settings.cannonAmmo, (value: CannonAmmo) => {
-      this.patchSettings({ cannonAmmo: value });
-    }, (value) => `${value}`);
-    wrap.classList.add("ammo-picker");
-    if (this.settings.mode !== "cannon") wrap.style.display = "none";
-    return wrap;
-  }
-
-  private categoryPicker(): HTMLElement {
-    const row = el("div", { class: "chips cats" });
-    const paint = (): void => {
-      clear(row);
-      const all = button(this.settings.categories.length === 0 ? "chip on" : "chip", "All", () => {
-        this.patchSettings({ categories: [] });
-        paint();
-      });
-      row.append(all);
-      for (const category of TRIVIA_CATEGORIES) {
-        const on = this.settings.categories.includes(category);
-        const chip = button(on ? "chip on" : "chip", category, () => {
-          this.patchSettings({ categories: toggleCategory(this.settings.categories, category) });
-          paint();
-        });
-        row.append(chip);
-      }
-    };
-    paint();
-    return el("div", { class: "picker-block" }, [el("span", { class: "picker-label" }, ["Categories"]), row]);
-  }
-
   private speedPicker(): HTMLElement {
     return this.picker("Speed", PLAY_SPEEDS, this.playSpeed, (value: PlaySpeed) => {
       this.playSpeed = value;
       this.patchSettings({ playSpeed: value });
-    }, (value) => `${value}×`);
+    }, (value) => `${value}\u00d7`);
   }
 
   private openPause(): void {
@@ -750,11 +612,7 @@ export class App {
     };
     overlay.append(
       el("div", { class: "panel" }, [
-        el("div", { class: "sheet" }, [
-          el("h3", {}, ["Paused"]),
-          this.speedPicker(),
-          el("p", { class: "note" }, ["Speed applies now. Restart if you want a different table."]),
-        ]),
+        el("div", { class: "sheet" }, [el("h3", {}, ["Paused"]), this.speedPicker()]),
         el("div", { class: "actions" }, [
           button("solid", "Resume", close),
           button("ghost", "Restart", () => {
@@ -766,11 +624,6 @@ export class App {
             overlay.remove();
             this.paused = false;
             this.endRun?.("Cashed out", "You banked this score.");
-          }),
-          button("ghost", "Table", () => {
-            overlay.remove();
-            this.paused = false;
-            this.go("setup");
           }),
         ]),
       ]),
@@ -886,12 +739,7 @@ export class App {
         }
         onAmmo?.(world);
         sound.resume();
-        if (firstShot) {
-          firstShot = false;
-          gagPop(board, sound.goof());
-        } else {
-          gagPop(board, sound.maybeGoof(0.16));
-        }
+        sound.maybeGoof(0.14);
       }
       release();
     };
@@ -923,15 +771,14 @@ export class App {
     window.addEventListener("resize", scale);
     window.visualViewport?.addEventListener("resize", scale);
 
-    let firstShot = true;
     let last = performance.now();
     let lastGoofTick = performance.now();
     let raf = 0;
     const tick = (now: number): void => {
       if (world.paused) release();
-      if (!world.paused && now - lastGoofTick > 14000) {
+      if (!world.paused && now - lastGoofTick > 16000) {
         lastGoofTick = now;
-        gagPop(board, sound.maybeGoof(0.38));
+        sound.maybeGoof(0.3);
       }
       const frame = Math.min(0.033, (now - last) / 1000);
       last = now;
@@ -963,16 +810,6 @@ export class App {
   }
 }
 
-function paintWorldPlaque(node: HTMLElement, record: WorldRecord): void {
-  clear(node);
-  node.className = hasHolder(record) ? "world-plaque held" : "world-plaque";
-  node.append(
-    el("small", {}, ["World record"]),
-    el("b", { class: "who" }, [formatHolder(record)]),
-    el("span", { class: "reach" }, [formatReach(record)]),
-  );
-}
-
 function stat(label: string, value: string): HTMLElement {
   return el("div", { class: "tally-cell" }, [el("small", {}, [label]), el("b", {}, [value])]);
 }
@@ -983,15 +820,11 @@ function button(kind: string, label: string, onClick: () => void): HTMLButtonEle
   return btn;
 }
 
-function paintBalls(node: HTMLElement, lives: number): void {
+function paintLives(node: HTMLElement, lives: number): void {
   clear(node);
-  if (lives > 8) {
-    node.append(el("span", { class: "ball" }), el("span", { class: "ball-count" }, [`×${lives}`]));
-    return;
-  }
-  const max = Math.max(4, lives);
+  const max = Math.max(4, Math.min(MAX_LIVES, lives));
   for (let i = 0; i < max; i += 1) {
-    node.append(el("span", { class: i < lives ? "ball" : "ball gone" }));
+    node.append(el("span", { class: i < lives ? "life" : "life gone" }));
   }
 }
 
@@ -1006,11 +839,11 @@ function paintCombo(node: HTMLElement, streak: number): void {
   node.append(el("b", {}, [`\u00d7${multiplier}`]), el("small", {}, [streakLabel(streak)]));
 }
 
-function gagPop(host: HTMLElement | null | undefined, kind: GoofKind | null): void {
-  if (!host || !kind) return;
-  const pop = el("div", { class: "pop gag" }, [kind.toUpperCase()]);
-  host.append(pop);
-  window.setTimeout(() => pop.remove(), 1800);
+/** The whole board answers back: green rim for a win, red rim for a loss. */
+function pulse(host: HTMLElement, tone: "good" | "bad"): void {
+  const veil = el("div", { class: `verdict ${tone}` });
+  host.append(veil);
+  window.setTimeout(() => veil.remove(), 620);
 }
 
 function floatPoints(host: HTMLElement, text: string, tone: "good" | "bad"): void {
@@ -1028,19 +861,27 @@ function celebrate(host: HTMLElement, streak: number): void {
   window.setTimeout(() => flash.remove(), 1000);
 }
 
+const HOSTS = [
+  "The wall wants a word with you.",
+  "Pop quiz from a broken brick.",
+  "Don't whiff this one.",
+  "The table just got academic.",
+  "Answer it. The board is listening.",
+];
+
 function showQuiz(
   host: HTMLElement,
-  question: TriviaQuestion,
+  pending: Pending,
   session: TriviaSession,
-  world: BreakerWorld,
-  done: (correct: boolean, effect: Effect, points: number) => void,
+  done: (correct: boolean, stake: Stake) => void,
   schedule: (fn: () => void, ms: number) => void,
 ): () => void {
+  const { question, tier } = pending;
   const drawn = orderedChoices(question);
   let locked = false;
   let left = 14;
   const bar = el("i");
-  const overlay = el("div", { class: "overlay" });
+  const overlay = el("div", { class: `overlay quiz tier-${tier}` });
   const buttons: HTMLButtonElement[] = drawn.labels.map((label, index) => {
     const btn: HTMLButtonElement = button("choice", label, () => finish(index, btn));
     return btn;
@@ -1051,44 +892,31 @@ function showQuiz(
     window.clearInterval(timer);
     const result = gradeAnswer(session, { ...question, answer: drawn.answer }, choice);
     if (btn) btn.classList.add(result.correct ? "good" : "bad");
-    if (!result.correct) {
-      buttons[drawn.answer]?.classList.add("reveal");
-    }
+    if (!result.correct) buttons[drawn.answer]?.classList.add("reveal");
     for (const other of buttons) other.disabled = true;
     if (result.correct) {
       sound.correct();
-      gagPop(host, sound.maybeGoof(0.42));
     } else {
       sound.wrong();
-      gagPop(host, sound.maybeGoof(0.55));
     }
-    const now = performance.now();
-    const effect = pickEffect(
-      result.correct,
-      result.streak,
-      {
-        lives: world.lives,
-        bricksAlive: aliveBricks(world.bricks).length,
-        ballsInPlay: world.balls.length,
-        alreadyWobbly: now < world.wobbleUntil,
-        alreadyFireball: now < world.fireballUntil,
-        mode: world.mode,
-      },
-      Math.random,
-      question.difficulty,
-    );
+    sound.maybeGoof(0.45);
+    const stake = stakeFor(tier, result.correct, result.streak);
     schedule(() => {
       overlay.remove();
-      done(result.correct, effect, result.points);
-    }, result.correct ? 420 : 1150);
+      done(result.correct, stake);
+    }, result.correct ? 460 : 1250);
   };
 
-  const tier = question.difficulty === 3 ? "Brutal" : question.difficulty === 2 ? "Hard" : "Easy";
+  const chip = el("span", { class: "cat-chip" }, [question.category]);
+  chip.style.setProperty("--hue", categoryChip(question.category));
   overlay.append(
     el("div", { class: "panel" }, [
       el("div", { class: "sheet" }, [
-        el("p", { class: "meta" }, [
-          `${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}  ·  ${tier}`,
+        el("p", { class: "meta" }, [HOSTS[Math.floor(Math.random() * HOSTS.length)]!]),
+        el("div", { class: "quiz-head" }, [
+          chip,
+          el("span", { class: `tier-badge tier-${tier}` }, [`${tierGlyph(tier)} ${TIER_LABELS[tier]}`]),
+          el("span", { class: "stake-line" }, [tierReward(tier)]),
         ]),
         el("h2", {}, [question.question]),
         el("div", { class: "choices" }, buttons),

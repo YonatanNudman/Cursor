@@ -1,5 +1,4 @@
 import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
-import type { QuestionFloor } from "./settings";
 
 export interface TriviaSession {
   remaining: TriviaQuestion[];
@@ -38,44 +37,36 @@ export function createTriviaSession(
 }
 
 /**
- * The wall gets harder every wave, so the questions should too. Early waves stay
- * on warm-ups, the middle mixes, and the deep waves stop being polite. Returning
- * a widening list rather than one tier means a thin bank still finds something.
+ * What the brick that just broke is asking for. The brick's own colour already
+ * promised the player a subject and a tier, so the draw has to try to honour
+ * both before it settles for whatever is left in the bank.
  */
-export function tiersForWave(wave: number, floor: QuestionFloor = 0): Difficulty[] {
-  const auto: Difficulty[] = wave <= 2 ? [1] : wave <= 4 ? [1, 2] : wave <= 7 ? [2, 1, 3] : wave <= 10 ? [2, 3] : [3, 2];
-  if (floor <= 0) return auto;
-  const clipped = auto.filter((tier) => tier >= floor);
-  if (clipped.length > 0) return clipped;
-  const forced: Difficulty[] = [];
-  if (floor <= 3) forced.push(3);
-  if (floor <= 2) forced.push(2);
-  if (floor <= 1) forced.push(1);
-  return forced;
+export interface QuestionWant {
+  tier?: Difficulty;
+  category?: TriviaCategory;
 }
 
-export function filterBank(
-  questions: TriviaQuestion[],
-  categories: TriviaCategory[],
-  floor: QuestionFloor = 0,
+function narrow(
+  pool: TriviaQuestion[],
+  want: QuestionWant,
 ): TriviaQuestion[] {
-  let pool = categories.length > 0 ? questions.filter((question) => categories.includes(question.category)) : questions;
-  if (floor > 0) {
-    const floored = pool.filter((question) => question.difficulty >= floor);
-    if (floored.length >= 8) pool = floored;
-    else {
-      const relaxed = pool.filter((question) => question.difficulty >= Math.max(1, floor - 1));
-      if (relaxed.length > 0) pool = relaxed;
-    }
+  const passes: Array<(question: TriviaQuestion) => boolean> = [];
+  if (want.tier && want.category) {
+    passes.push((q) => q.difficulty === want.tier && q.category === want.category);
   }
-  return pool.length > 0 ? pool : questions;
+  if (want.category) passes.push((q) => q.category === want.category);
+  if (want.tier) passes.push((q) => q.difficulty === want.tier);
+  for (const pass of passes) {
+    const match = pool.filter(pass);
+    if (match.length > 0) return match;
+  }
+  return pool;
 }
 
 export function drawQuestion(
   session: TriviaSession,
-  wave = 1,
+  want: QuestionWant = {},
   rng: () => number = Math.random,
-  floor: QuestionFloor = 0,
 ): TriviaQuestion | null {
   if (session.remaining.length === 0) {
     const unused = session.bank.filter((question) => !session.asked.includes(question.id));
@@ -88,18 +79,7 @@ export function drawQuestion(
     }
   }
 
-  // Prefer the wave's tier, then fall back through the rest so the draw never
-  // comes up empty just because one tier is exhausted.
-  const tiers = tiersForWave(wave, floor);
-  let tiered = session.remaining;
-  for (const tier of tiers) {
-    const match = session.remaining.filter((question) => question.difficulty === tier);
-    if (match.length > 0) {
-      tiered = match;
-      break;
-    }
-  }
-
+  const tiered = narrow(session.remaining, want);
   const counts = session.askedByCategory;
   let best = Infinity;
   for (const question of tiered) {
