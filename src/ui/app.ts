@@ -31,6 +31,7 @@ import {
   CANNON_AMMO,
   PLAY_SPEEDS,
   QUESTION_FLOORS,
+  START_WAVES,
   floorHint,
   floorLabel,
   modeHint,
@@ -42,6 +43,7 @@ import {
   type PlaySpeed,
   type QuestionFloor,
   type RunSettings,
+  type StartWave,
 } from "../logic/settings";
 import { allDifficulties, difficulty, type DifficultyPreset } from "../logic/difficulty";
 import {
@@ -141,6 +143,7 @@ export class App {
         ]),
         this.modePicker(),
         this.levelPicker(),
+        this.wavePicker(),
         this.floorPicker(),
         this.ammoPicker(),
         this.categoryPicker(),
@@ -153,7 +156,7 @@ export class App {
     const preset = this.preset();
     const settings = this.settings;
     this.playSpeed = settings.playSpeed;
-    let wave = 1;
+    let wave = settings.startWave;
     let score = 0;
     let lives: number = preset.lives;
     let settled = false;
@@ -380,7 +383,7 @@ export class App {
     ammo: HTMLElement | null;
   } {
     const score = el("b", {}, ["0"]);
-    const wave = el("b", {}, ["1"]);
+    const wave = el("b", {}, [String(this.settings.startWave)]);
     const streak = el("b", {}, ["0"]);
     const combo = el("div", { class: "combo" });
     const balls = el("div", { class: "balls" });
@@ -435,6 +438,7 @@ export class App {
         ]),
         this.modePicker(),
         this.levelPicker(),
+        this.wavePicker(),
         this.floorPicker(),
         this.ammoPicker(),
         el("div", { class: "actions" }, [
@@ -508,6 +512,12 @@ export class App {
     return el("div", { class: "picker-block" }, [el("span", { class: "picker-label" }, ["Questions"]), row]);
   }
 
+  private wavePicker(): HTMLElement {
+    return this.picker("Start wave", START_WAVES, this.settings.startWave, (value: StartWave) => {
+      this.patchSettings({ startWave: value });
+    }, (value) => `${value}`);
+  }
+
   private ammoPicker(): HTMLElement {
     const wrap = this.picker("Cannon magazine", CANNON_AMMO, this.settings.cannonAmmo, (value: CannonAmmo) => {
       this.patchSettings({ cannonAmmo: value });
@@ -562,6 +572,7 @@ export class App {
         el("h3", {}, ["Paused"]),
         this.modePicker(),
         this.levelPicker(),
+        this.wavePicker(),
         this.floorPicker(),
         this.ammoPicker(),
         this.speedPicker(),

@@ -21,6 +21,7 @@ describe("settings", () => {
       categories: [],
       cannonAmmo: 30,
       playSpeed: 1,
+      startWave: 1,
     });
   });
 
@@ -33,6 +34,7 @@ describe("settings", () => {
       categories: ["Science", "Tech"],
       cannonAmmo: 50,
       playSpeed: 4,
+      startWave: 8,
     });
     expect(readSettings(storage)).toEqual({
       difficulty: "brutal",
@@ -41,11 +43,13 @@ describe("settings", () => {
       categories: ["Science", "Tech"],
       cannonAmmo: 50,
       playSpeed: 4,
+      startWave: 8,
     });
-    writeSettings(storage, { difficulty: "bogus" as never } as never);
+    writeSettings(storage, { difficulty: "bogus" as never, startWave: 99 as never } as never);
     const next = readSettings(storage);
     expect(next.difficulty).toBe("normal");
     expect(next.mode).toBe("cannon");
+    expect(next.startWave).toBe(1);
   });
 
   it("survives a corrupt store", () => {

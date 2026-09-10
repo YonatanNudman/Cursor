@@ -5,6 +5,7 @@ export type PlayMode = "paddle" | "cannon";
 export type QuestionFloor = 0 | 1 | 2 | 3;
 export type CannonAmmo = 10 | 20 | 30 | 50;
 export type PlaySpeed = 1 | 2 | 3 | 4 | 5;
+export type StartWave = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export interface RunSettings {
   difficulty: DifficultyName;
@@ -13,6 +14,7 @@ export interface RunSettings {
   categories: TriviaCategory[];
   cannonAmmo: CannonAmmo;
   playSpeed: PlaySpeed;
+  startWave: StartWave;
 }
 
 const KEY = "mindbreaker.settings";
@@ -21,6 +23,7 @@ export const PLAY_MODES: readonly PlayMode[] = ["paddle", "cannon"];
 export const QUESTION_FLOORS: readonly QuestionFloor[] = [0, 1, 2, 3];
 export const CANNON_AMMO: readonly CannonAmmo[] = [10, 20, 30, 50];
 export const PLAY_SPEEDS: readonly PlaySpeed[] = [1, 2, 3, 4, 5];
+export const START_WAVES: readonly StartWave[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 export function isPlayMode(value: string): value is PlayMode {
   return (PLAY_MODES as readonly string[]).includes(value);
@@ -36,6 +39,14 @@ export function isCannonAmmo(value: number): value is CannonAmmo {
 
 export function isPlaySpeed(value: number): value is PlaySpeed {
   return (PLAY_SPEEDS as readonly number[]).includes(value);
+}
+
+export function isStartWave(value: number): value is StartWave {
+  return (START_WAVES as readonly number[]).includes(value);
+}
+
+export function parseStartWave(raw: unknown): StartWave {
+  return typeof raw === "number" && Number.isInteger(raw) && isStartWave(raw) ? raw : 1;
 }
 
 export function parseCategories(raw: unknown): TriviaCategory[] {
@@ -56,6 +67,7 @@ export function defaultSettings(): RunSettings {
     categories: [],
     cannonAmmo: 30,
     playSpeed: 1,
+    startWave: 1,
   };
 }
 
@@ -74,6 +86,7 @@ export function settingsFromUnknown(raw: unknown): RunSettings {
     cannonAmmo:
       typeof rec.cannonAmmo === "number" && isCannonAmmo(rec.cannonAmmo) ? rec.cannonAmmo : fallback.cannonAmmo,
     playSpeed: typeof rec.playSpeed === "number" && isPlaySpeed(rec.playSpeed) ? rec.playSpeed : fallback.playSpeed,
+    startWave: parseStartWave(rec.startWave),
   };
 }
 

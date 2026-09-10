@@ -20,7 +20,7 @@ Four table levels. Chill hands a ball back each cleared wave. Normal gives you
 three and no handouts. Hard starts with a thicker wall. Brutal is one life, fat
 HP, and extra rows from the first wave.
 
-Pick categories and a question floor, or leave both on auto. The bank will not
+Pick the starting wave, categories, and a question floor, or leave those on auto. The bank will not
 repeat an id until it is empty, and recent questions stay out of the next run.
 
 Answer streaks pay a multiplier that rides along on every brick you break, so a
