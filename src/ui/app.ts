@@ -249,6 +249,8 @@ export class App {
               return;
             }
             const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6);
+            world.shake = 10;
+            floatPoints(hud.board, "WALL DROPS", "bad");
             if (reachedFloor) {
               world.paused = true;
               finish("The wall reached the floor", `Wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);

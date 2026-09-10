@@ -407,10 +407,15 @@ canvas {
   flex: 1;
 }
 
+.foot {
+  flex-wrap: wrap;
+}
+
 .foot .chip {
-  min-height: 36px;
-  min-width: 36px;
-  padding: 6px 10px;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .rules {
