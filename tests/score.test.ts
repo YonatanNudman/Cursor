@@ -23,7 +23,7 @@ describe("seen store", () => {
     expect(readSeen(storage)).toEqual(["a", "b"]);
     const pool = [{ id: "a" }, { id: "c" }, { id: "d" }];
     const fresh = preferFresh(pool, readSeen(storage));
-    expect(fresh.map((item) => item.id)).toEqual(["c", "d", "a"]);
+    expect(fresh.map((item) => item.id)).toEqual(["c", "d"]);
   });
 
   it("keeps the best score", () => {

@@ -89,7 +89,7 @@ describe("question bank", () => {
   it("is large, unique, and spread across sections", () => {
     const ids = QUESTIONS.map((question) => question.id);
     expect(new Set(ids).size).toBe(QUESTIONS.length);
-    expect(QUESTIONS.length).toBeGreaterThanOrEqual(300);
+    expect(QUESTIONS.length).toBeGreaterThanOrEqual(1000);
     const counts = sectionCounts(QUESTIONS);
     expect(Object.keys(counts).length).toBeGreaterThanOrEqual(16);
     for (const [section, count] of Object.entries(counts)) {
@@ -105,7 +105,7 @@ describe("question bank", () => {
     expect(new Set(texts).size, "duplicate question text").toBe(texts.length);
     for (const tier of [1, 2, 3] as const) {
       const inTier = QUESTIONS.filter((question) => question.difficulty === tier);
-      expect(inTier.length, `tier ${tier}`).toBeGreaterThanOrEqual(40);
+      expect(inTier.length, `tier ${tier}`).toBeGreaterThanOrEqual(80);
     }
   });
 });

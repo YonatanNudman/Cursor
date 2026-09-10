@@ -1,4 +1,5 @@
 import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
+import { MORE_QUESTIONS } from "./more-questions";
 
 function q(
   id: string,
@@ -734,4 +735,5 @@ export const QUESTIONS: TriviaQuestion[] = [
   q("wor-h1", "World", "Which African country was never formally colonized, defeating Italy at Adwa in 1896?", "Liberia", "Ethiopia", "Ghana", "Morocco", 1, 3),
   q("gen-h1", "General", "What is the smallest perfect number?", "1", "6", "28", "12", 1, 3),
   q("gen-h2", "General", "How many degrees are in the interior angles of a regular octagon, summed?", "720", "1080", "1440", "2160", 1, 3),
+  ...MORE_QUESTIONS,
 ];

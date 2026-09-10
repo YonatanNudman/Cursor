@@ -1,6 +1,6 @@
 const SEEN_KEY = "mindbreaker.seen-ids";
 const BEST_KEY = "mindbreaker.best";
-const MAX_SEEN = 220;
+const MAX_SEEN = 1600;
 
 export function readSeen(storage: Pick<Storage, "getItem"> | null): string[] {
   if (!storage) return [];
@@ -35,6 +35,5 @@ export function writeBest(storage: Pick<Storage, "getItem" | "setItem"> | null, 
 export function preferFresh<T extends { id: string }>(items: T[], seen: string[]): T[] {
   const seenSet = new Set(seen);
   const fresh = items.filter((item) => !seenSet.has(item.id));
-  const stale = items.filter((item) => seenSet.has(item.id));
-  return fresh.length >= 16 ? fresh : [...fresh, ...stale];
+  return fresh.length > 0 ? fresh : items;
 }
