@@ -95,6 +95,7 @@ export class App {
   private stopLoop: (() => void) | null = null;
   private unbind: (() => void) | null = null;
   private world: BreakerWorld | null = null;
+  private endRun: ((title: string, detail: string) => void) | null = null;
   private boardHost: HTMLElement | null = null;
   private paused = false;
   private asking = false;
@@ -111,6 +112,7 @@ export class App {
 
   private teardown(): void {
     this.world = null;
+    this.endRun = null;
     this.boardHost = null;
     this.paused = false;
     this.asking = false;
@@ -207,6 +209,7 @@ export class App {
       };
       this.go("result");
     };
+    this.endRun = finish;
 
     const startWave = (): void => {
       this.stopLoop?.();
@@ -708,6 +711,11 @@ export class App {
             overlay.remove();
             this.paused = false;
             this.go("play");
+          }),
+          button("ghost", "End run", () => {
+            overlay.remove();
+            this.paused = false;
+            this.endRun?.("Cashed out", "You banked this score.");
           }),
           button("ghost", "Table", () => {
             overlay.remove();
