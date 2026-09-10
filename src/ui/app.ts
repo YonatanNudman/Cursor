@@ -14,7 +14,7 @@ import {
   stepWorld,
   type BreakerWorld,
 } from "../game/breaker";
-import { sound } from "../audio";
+import { sound, type GoofKind } from "../audio";
 import { aliveBricks, buildLevel, descendBricks, onlyNumbersLeft, waveSpec } from "../logic/bricks";
 import { pickEffect } from "../logic/effects";
 import { QUIZ_COOLDOWN_MS, canQueueQuiz } from "../logic/quiz-gate";
@@ -213,7 +213,7 @@ export class App {
           onBrickHit: (brick, broke) => {
             if (!broke) {
               sound.brick();
-              sound.maybeGoof(0.04);
+              gagPop(hud.board, sound.maybeGoof(0.04));
               return;
             }
             score +=
@@ -221,7 +221,7 @@ export class App {
             hud.score.textContent = formatScore(score);
             bricksSinceQuiz += 1;
             sound.break();
-            sound.maybeGoof(0.08);
+            gagPop(hud.board, sound.maybeGoof(0.08));
             if (brick.kind === "quiz") {
               const ready = performance.now() >= quizReadyAt;
               if (canQueueQuiz(asking, quizQueue.length, ready, bricksSinceQuiz)) {
@@ -238,7 +238,7 @@ export class App {
           },
           onBallLost: () => {
             sound.miss();
-            sound.maybeGoof(0.35);
+            gagPop(hud.board, sound.maybeGoof(0.35));
             lives = world.lives;
             paintBalls(hud.balls, lives);
             if (world.lives <= 0) {
@@ -260,7 +260,7 @@ export class App {
             const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6);
             world.shake = 10;
             floatPoints(hud.board, "WALL DROPS", "bad");
-            sound.maybeGoof(0.4);
+            gagPop(hud.board, sound.maybeGoof(0.4));
             if (reachedFloor) {
               world.paused = true;
               finish("The wall reached the floor", `Wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
@@ -332,7 +332,7 @@ export class App {
       if (!beginSweep(world)) return false;
       paintAmmo(world);
       floatPoints(hud.board, "BURN THE REST", "good");
-      sound.maybeGoof(0.55);
+      gagPop(hud.board, sound.maybeGoof(0.55));
       return true;
     };
 
@@ -343,7 +343,7 @@ export class App {
       score += waveClearBonus(wave, world.lives) * preset.weight;
       lives = preset.lifePerWave ? Math.min(12, world.lives + 1) : world.lives;
       sound.win();
-      sound.maybeGoof(0.45);
+      gagPop(hud.board, sound.maybeGoof(0.45));
       wave += 1;
       hud.wave.textContent = String(wave);
       hud.score.textContent = formatScore(score);
@@ -709,7 +709,12 @@ export class App {
         }
         onAmmo?.(world);
         sound.resume();
-        sound.maybeGoof(0.16);
+        if (firstShot) {
+          firstShot = false;
+          gagPop(board, sound.goof());
+        } else {
+          gagPop(board, sound.maybeGoof(0.16));
+        }
       }
       release();
     };
@@ -740,6 +745,7 @@ export class App {
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", scale);
 
+    let firstShot = true;
     let last = performance.now();
     let lastGoofTick = performance.now();
     let raf = 0;
@@ -747,7 +753,7 @@ export class App {
       if (world.paused) release();
       if (!world.paused && now - lastGoofTick > 14000) {
         lastGoofTick = now;
-        sound.maybeGoof(0.38);
+        gagPop(board, sound.maybeGoof(0.38));
       }
       const frame = Math.min(0.033, (now - last) / 1000);
       last = now;
@@ -811,6 +817,11 @@ function paintCombo(node: HTMLElement, streak: number): void {
   node.append(el("b", {}, [`\u00d7${multiplier}`]), el("small", {}, [streakLabel(streak)]));
 }
 
+function gagPop(host: HTMLElement | null | undefined, kind: GoofKind | null): void {
+  if (!host || !kind) return;
+  floatPoints(host, kind.toUpperCase(), "good");
+}
+
 function floatPoints(host: HTMLElement, text: string, tone: "good" | "bad"): void {
   const pop = el("div", { class: `pop ${tone}` }, [text]);
   host.append(pop);
@@ -865,10 +876,10 @@ function showQuiz(
     for (const other of buttons) other.disabled = true;
     if (result.correct) {
       sound.correct();
-      sound.maybeGoof(0.42);
+      gagPop(host, sound.maybeGoof(0.42));
     } else {
       sound.wrong();
-      sound.maybeGoof(0.55);
+      gagPop(host, sound.maybeGoof(0.55));
     }
     const now = performance.now();
     const effect = pickEffect(
