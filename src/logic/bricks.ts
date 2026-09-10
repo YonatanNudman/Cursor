@@ -1,3 +1,4 @@
+import type { PlayMode } from "./settings";
 import type { Brick } from "../types";
 
 export interface LevelSpec {
@@ -102,10 +103,31 @@ export interface WavePressure {
   hpBonus?: number;
 }
 
+export interface CannonPlate {
+  minHp: number;
+  hpBonus: number;
+  rowBonus: number;
+  capBump: number;
+}
+
+/**
+ * A cannon magazine deletes a thin wall. Numbered bricks get extra enamel so
+ * one volley cannot vacuum the table, and a fatter magazine plates them more.
+ */
+export function cannonPlate(wave: number, magazine = 30): CannonPlate {
+  const mag = magazine >= 50 ? 2 : magazine >= 30 ? 1 : 0;
+  return {
+    minHp: Math.min(4, 2 + Math.floor((Math.max(1, wave) - 1) / 4)),
+    hpBonus: 1 + mag,
+    rowBonus: 1,
+    capBump: 2,
+  };
+}
+
 /**
  * The wall has to climb. Named table difficulty adds rows and hit points on
  * top of the wave ramp, and a hard question floor thickens numbered bricks
- * so a smart-ass table actually plays harder.
+ * so a smart-ass table actually plays harder. Cannon adds its own plate.
  */
 export function waveSpec(
   wave: number,
@@ -113,12 +135,15 @@ export function waveSpec(
   height: number,
   pressure: WavePressure = {},
   questionFloor = 0,
+  mode: PlayMode = "paddle",
+  magazine = 30,
 ): LevelSpec {
   const rowBonus = pressure.rowBonus ?? 0;
   const hpBonus = pressure.hpBonus ?? 0;
   const questionBonus = questionFloor >= 3 ? 2 : questionFloor >= 2 ? 1 : 0;
-  const cap = pressure.maxBrickHp ?? 5;
-  const rows = Math.min(10, 5 + Math.floor((wave - 1) / 2) + rowBonus);
+  const plate = mode === "cannon" ? cannonPlate(wave, magazine) : { minHp: 1, hpBonus: 0, rowBonus: 0, capBump: 0 };
+  const cap = (pressure.maxBrickHp ?? 5) + plate.capBump;
+  const rows = Math.min(10, 5 + Math.floor((wave - 1) / 2) + rowBonus + plate.rowBonus);
   const cols = width < 420 ? 6 : Math.min(10, 7 + Math.floor((wave - 1) / 3));
   return {
     rows,
@@ -128,8 +153,8 @@ export function waveSpec(
     padding: 10,
     offsetY: 10,
     quizRatio: Math.min(0.36, 0.22 + wave * 0.012),
-    minHp: 1,
-    maxHp: Math.min(cap, 1 + Math.ceil(wave / 2) + hpBonus + questionBonus),
+    minHp: plate.minHp,
+    maxHp: Math.min(cap, plate.minHp + Math.ceil(wave / 2) + hpBonus + questionBonus + plate.hpBonus),
   };
 }
 

@@ -366,6 +366,7 @@ export function spawnBalls(world: BreakerWorld, count: number): void {
  */
 export function colorForBrick(brick: Brick): string {
   if (brick.kind === "quiz") return "#e0a83a";
+  if (brick.hp >= 8) return "#3d1024";
   if (brick.hp >= 7) return "#6b1d3a";
   if (brick.hp >= 6) return "#8a2a42";
   if (brick.hp >= 5) return "#a8414c";

@@ -126,7 +126,7 @@ export function modeHint(mode: PlayMode): string {
     case "paddle":
       return "Hold to aim, drag the bar, keep the ball alive.";
     case "cannon":
-      return "Aim once. Fire the magazine. Rows drop when the volley ends.";
+      return "Aim once. Fire the magazine. Numbers come plated. Rows drop when the volley ends.";
     default: {
       const _never: never = mode;
       return _never;

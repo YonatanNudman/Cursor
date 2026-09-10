@@ -219,7 +219,15 @@ export class App {
       const frame = hud.board.getBoundingClientRect();
       const width = Math.max(320, Math.floor(frame.width));
       const height = Math.max(360, Math.floor(frame.height));
-      const spec = waveSpec(wave, width, height, preset, settings.questionFloor);
+      const spec = waveSpec(
+        wave,
+        width,
+        height,
+        preset,
+        settings.questionFloor,
+        settings.mode,
+        settings.cannonAmmo,
+      );
       const wavePush = 0.2 + preset.weight * 0.05;
       const world = attachHooks(
         createWorld(

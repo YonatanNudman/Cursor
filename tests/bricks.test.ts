@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aliveBricks, armorBricks, buildLevel, descendBricks, dropRow, hitBrick, hpForCell, onlyNumbersLeft, waveSpec } from "../src/logic/bricks";
+import { aliveBricks, armorBricks, buildLevel, cannonPlate, descendBricks, dropRow, hitBrick, hpForCell, onlyNumbersLeft, waveSpec } from "../src/logic/bricks";
 import { difficulty } from "../src/logic/difficulty";
 
 function cycle(values: number[]): () => number {
@@ -90,6 +90,28 @@ describe("waveSpec", () => {
     const brutal = waveSpec(3, 390, 640, difficulty("brutal"), 3);
     expect(brutal.rows).toBeGreaterThan(chill.rows);
     expect(brutal.maxHp).toBeGreaterThan(chill.maxHp);
+  });
+
+  it("plates numbered bricks for cannon so a magazine cannot vacuum the wall", () => {
+    const paddle = waveSpec(1, 390, 640, difficulty("normal"), 0, "paddle");
+    const cannon = waveSpec(1, 390, 640, difficulty("normal"), 0, "cannon", 30);
+    const fatMag = waveSpec(1, 390, 640, difficulty("normal"), 0, "cannon", 50);
+    expect(paddle.minHp).toBe(1);
+    expect(paddle.maxHp).toBe(2);
+    expect(paddle.rows).toBe(5);
+    expect(cannon.minHp).toBeGreaterThanOrEqual(2);
+    expect(cannon.maxHp).toBeGreaterThan(paddle.maxHp);
+    expect(cannon.rows).toBeGreaterThan(paddle.rows);
+    expect(fatMag.maxHp).toBeGreaterThan(cannon.maxHp);
+  });
+});
+
+describe("cannonPlate", () => {
+  it("thickens with the wave and with a fatter magazine", () => {
+    expect(cannonPlate(1, 10).minHp).toBe(2);
+    expect(cannonPlate(1, 30).hpBonus).toBeGreaterThan(cannonPlate(1, 10).hpBonus);
+    expect(cannonPlate(1, 50).hpBonus).toBeGreaterThan(cannonPlate(1, 30).hpBonus);
+    expect(cannonPlate(5, 30).minHp).toBeGreaterThan(cannonPlate(1, 30).minHp);
   });
 });
 
