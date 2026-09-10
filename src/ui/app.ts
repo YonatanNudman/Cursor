@@ -871,6 +871,7 @@ export class App {
     canvas.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", scale);
+    window.visualViewport?.addEventListener("resize", scale);
 
     let firstShot = true;
     let last = performance.now();
@@ -907,6 +908,7 @@ export class App {
       canvas.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", scale);
+      window.visualViewport?.removeEventListener("resize", scale);
     };
   }
 }

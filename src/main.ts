@@ -1,5 +1,8 @@
+import { bindViewportFrame } from "./logic/viewport";
 import { App } from "./ui/app";
 import "./style.css";
+
+bindViewportFrame(window, document.documentElement.style);
 
 const root = document.querySelector("#app");
 if (!root) {

@@ -19,7 +19,13 @@
 
   --line: rgba(244, 236, 225, 0.12);
   --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --gutter: clamp(12px, 4.2vw, 18px);
+  --frame-h: 100dvh;
+  --frame-w: 100%;
+  --vv-top: 0px;
 
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
@@ -31,30 +37,50 @@
 }
 
 html,
-body,
-#app {
+body {
   margin: 0;
+  width: 100%;
   height: 100%;
-  min-height: 100dvh;
   overflow: hidden;
+  position: fixed;
+  inset: 0;
   background: var(--ink-deep);
   color: var(--paper);
   font-family: var(--ui);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+#app {
+  position: absolute;
+  left: 0;
+  top: var(--vv-top);
+  width: var(--frame-w);
+  height: var(--frame-h);
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink-deep);
 }
 
 button {
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .screen {
-  height: 100%;
-  max-height: 100dvh;
-  padding: calc(20px + var(--safe-top)) 18px calc(22px + var(--safe-bottom));
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: calc(16px + var(--safe-top)) calc(var(--gutter) + var(--safe-right)) 0
+    calc(var(--gutter) + var(--safe-left));
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -133,9 +159,10 @@ button {
 
 .world-plaque .who {
   font-family: var(--display);
-  font-size: 28px;
+  font-size: clamp(22px, 7vw, 28px);
   letter-spacing: -0.03em;
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .world-plaque .reach {
@@ -152,14 +179,14 @@ button {
 
 .name-in {
   width: 100%;
-  min-height: 52px;
+  min-height: 48px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--paper);
   font: inherit;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .name-in:focus {
@@ -195,10 +222,14 @@ button {
 }
 
 .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   margin-top: auto;
   display: grid;
   gap: 10px;
-  padding-top: 24px;
+  padding: 16px 0 calc(12px + var(--safe-bottom));
+  background: linear-gradient(180deg, rgba(11, 7, 16, 0) 0%, var(--ink-deep) 22%);
 }
 
 .solid,
@@ -221,11 +252,14 @@ button {
 }
 
 .play {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   height: 100%;
-  max-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: calc(10px + var(--safe-top)) 10px calc(10px + var(--safe-bottom));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: calc(8px + var(--safe-top)) calc(10px + var(--safe-right)) calc(8px + var(--safe-bottom))
+    calc(10px + var(--safe-left));
   gap: 8px;
 }
 
@@ -233,24 +267,28 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .stat {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+  min-width: 0;
 }
 
 .stat b {
   display: block;
   color: var(--paper);
-  font-size: 18px;
+  font-size: clamp(14px, 4.5vw, 18px);
   letter-spacing: 0;
   text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .balls {
@@ -258,6 +296,7 @@ button {
   gap: 5px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .ball {
@@ -290,13 +329,14 @@ canvas {
 }
 
 .foot {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
+  min-width: 0;
 }
 
 .overlay {
@@ -305,12 +345,15 @@ canvas {
   background: rgba(11, 7, 16, 0.9);
   display: grid;
   place-items: end stretch;
-  padding: 12px;
+  padding: max(10px, var(--safe-top)) max(10px, var(--safe-right)) max(10px, var(--safe-bottom))
+    max(10px, var(--safe-left));
 }
 
 .panel {
   width: 100%;
+  max-width: 100%;
   max-height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--stage);
@@ -444,6 +487,7 @@ canvas {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  max-width: 100%;
 }
 
 .chip {
@@ -472,17 +516,25 @@ canvas {
 
 .foot .chips {
   flex: 1;
-}
-
-.foot {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .foot .chip {
-  min-height: 32px;
-  min-width: 32px;
+  min-height: 40px;
+  min-width: 36px;
   padding: 4px 8px;
   font-size: 12px;
+}
+
+.foot .level-tag {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.foot .ghost.tiny {
+  white-space: nowrap;
 }
 
 .rules {
@@ -728,6 +780,7 @@ canvas {
 
 .modes {
   margin-top: 18px;
+  grid-template-columns: 1fr 1fr;
 }
 
 .cats {
@@ -750,6 +803,7 @@ canvas {
 
 .levels {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin: 14px 0 4px;
 }
@@ -801,7 +855,7 @@ canvas {
 
 .tally {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
   padding: 12px 0;
@@ -824,9 +878,10 @@ canvas {
 }
 
 .tally-cell b {
-  font-size: 19px;
+  font-size: clamp(15px, 4.8vw, 19px);
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .panel .note {
@@ -837,12 +892,16 @@ canvas {
   margin: 2px 0 0;
 }
 
+.panel .actions {
+  background: linear-gradient(180deg, rgba(30, 20, 40, 0) 0%, var(--stage) 22%);
+}
+
 /* ---- First-run coaching, not a setup screen ---- */
 
 .coach {
   position: absolute;
   left: 50%;
-  bottom: 84px;
+  bottom: clamp(56px, 16vh, 84px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -881,5 +940,91 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .coach {
     animation-duration: 1ms;
+  }
+}
+
+/* Narrow Android / iPhone SE widths */
+@media (max-width: 400px) {
+  .hud {
+    flex-wrap: wrap;
+  }
+
+  .foot {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .foot .picker {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .tally {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cta {
+    min-height: 56px;
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 340px) {
+  .modes,
+  .levels,
+  .floors {
+    grid-template-columns: 1fr;
+  }
+
+  .title {
+    font-size: clamp(32px, 12vw, 48px);
+  }
+}
+
+/* Short phones and landscape */
+@media (max-height: 700px) {
+  .setup .title,
+  .title {
+    font-size: clamp(32px, 10vw, 52px);
+  }
+
+  .lede {
+    font-size: 15px;
+    margin-top: 10px;
+  }
+
+  .levels,
+  .picker-block,
+  .modes {
+    margin-top: 10px;
+  }
+
+  .level {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .play {
+    gap: 4px;
+    padding: 6px max(8px, var(--safe-right)) 6px max(8px, var(--safe-left));
+  }
+
+  .actions {
+    padding-top: 10px;
+    gap: 8px;
+  }
+
+  .cta {
+    min-height: 48px;
+    font-size: 18px;
+  }
+
+  .overlay {
+    padding: 6px;
+  }
+
+  .panel {
+    padding: 10px;
+    border-radius: 12px;
   }
 }
