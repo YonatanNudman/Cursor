@@ -2,35 +2,43 @@
 
 One hybrid: brick-breaker plus trivia, built for a phone.
 
-Pick a table before you play. **Cannon** aims once and empties a magazine of
-10, 20, 30, or 50 balls. When the volley is done the surviving wall drops a row.
-If bricks reach the floor, the run is over. Mid-volley speed goes 1× to 5×.
-When the last `?` brick is gone, one fast pierce ball burns the leftover
-numbers so the next wave's questions do not wait.
-**Paddle** is the older fight: hold to aim, release to fire, then drag the bar
-and keep the ball alive.
+**Cannon** aims once and empties a magazine. When the volley runs dry the
+surviving wall drops toward you, and if it reaches the floor it costs you as
+many lives as it drops rows. **Paddle** is the older fight: hold to aim,
+release to fire, then drag the bar and keep the ball alive.
 
-Pink `?` bricks stop the table and ask a question. A right answer changes the
-board: extra balls, a wider paddle, slow-mo, a fireball, or a chip through the
-wall. A wrong answer makes it meaner, and shows you the answer you missed.
-Harder questions pay more and unlock louder rewards. Pair them with Hard or
-Brutal and the numbered bricks grow extra hit points.
+Coloured bricks are questions. The hue tells you the subject and the glyph
+tells you the stake: `?` risks one life, `??` two, `!?` three. Get it right and
+you win that many lives; get it wrong and you pay them. A brutal miss also
+drops a fresh row on the wall, and a hard miss armours every brick. Rows near
+the top of the wall ask harder questions than rows near the bottom, so the
+wall reads as a gradient and you can choose your fight before you swing.
 
-Four table levels. Chill hands a ball back each cleared wave. Normal gives you
-three and no handouts. Hard starts with a thicker wall. Brutal is one life, fat
-HP, and extra rows from the first wave.
+Pale gold `★` bricks let you choose outright: three subjects, then three
+prices. The subjects you played most recently are held back, so you cannot
+farm one category all run.
 
-Pick the starting wave, categories, and a question floor, or leave those on auto. The bank will not
-repeat an id until it is empty, and recent questions stay out of the next run.
+Levels rotate through ten layouts, and every fifth is a boss built from three
+layouts that never appear otherwise. As you climb, the wall thickens, the
+magazine shrinks, and the wall drops further per volley. `scripts/balance.ts`
+plays the game headless if you want to check the curve after a change:
 
-Answer streaks pay a multiplier that rides along on every brick you break, so a
-hot run visibly snowballs.
+```bash
+npx vite-node scripts/balance.ts            # summary across presets
+npx vite-node scripts/balance.ts --per-level
+```
+
+Four presets set the starting lives and how thick the wall begins. Chill hands
+a life back each cleared level; Brutal gives you one life and a taller wall.
+
+Answer streaks pay a multiplier that rides along on every brick you break, so
+a hot run visibly snowballs. The bank holds several thousand questions and
+will not repeat an id until it is empty, and recent questions stay out of the
+next run.
 
 The board also drops a random original gag every so often — farts, honks, sad
-trombone, fake airhorn, that kind of thing. Nothing ripped off a reel.
-
-Pass the world record and you get to write your name. The setup and result
-screens show who holds it and how far they got (wave, score, and rights).
+trombone, that kind of thing. Nothing ripped off a reel, and nothing printed
+on screen; they are sounds, so they only ever play.
 
 ## Play on your phone
 
