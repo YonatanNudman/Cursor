@@ -97,6 +97,17 @@ describe("question leftover sweep", () => {
     expect(world.balls[0]!.stuck).toBe(false);
   });
 
+  it("homes at leftover numbers instead of flying up the empty middle", () => {
+    const numbered = brick({ id: "n", x: 320, y: 40, kind: "hp", hp: 2, maxHp: 2 });
+    const world = createWorld(400, 500, [numbered], 2, 6, 1);
+    world.balls = [{ x: 40, y: 400, r: 7, vx: 0, vy: -6, stuck: false }];
+    expect(beginSweep(world)).toBe(true);
+    expect(world.balls[0]!.vx).toBeGreaterThan(0);
+    expect(world.balls[0]!.vy).toBeLessThan(0);
+    for (let i = 0; i < 90; i += 1) stepWorld(world, 0.016, i * 16);
+    expect(numbered.alive).toBe(false);
+  });
+
   it("will not sweep while a question brick is still up", () => {
     const numbered = brick({ id: "n", x: 40, kind: "hp" });
     const quiz = brick({ id: "q", x: 100, kind: "quiz" });

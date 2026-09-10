@@ -230,18 +230,51 @@ function liveBallCap(world: BreakerWorld): number {
 
 export const CLEANUP_SPEED = 16;
 
+function nearestNumber(world: BreakerWorld, x: number, y: number): Brick | null {
+  let best: Brick | null = null;
+  let bestDist = Infinity;
+  for (const brick of world.bricks) {
+    if (!brick.alive || brick.kind !== "hp") continue;
+    const dx = brick.x + brick.w / 2 - x;
+    const dy = brick.y + brick.h / 2 - y;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = brick;
+    }
+  }
+  return best;
+}
+
+function headingForSweep(world: BreakerWorld, x: number, y: number): number {
+  const target = nearestNumber(world, x, y);
+  if (!target) return AIM_UP;
+  return Math.atan2(target.y + target.h / 2 - y, target.x + target.w / 2 - x);
+}
+
 function restockSweep(world: BreakerWorld): void {
   const radius = world.balls[0]?.r ?? 7;
+  const x = world.paddle.x + world.paddle.w / 2;
+  const y = world.paddle.y - radius - 1;
+  const heading = headingForSweep(world, x, y);
   world.balls = [
     {
-      x: world.paddle.x + world.paddle.w / 2,
-      y: world.paddle.y - radius - 1,
+      x,
+      y,
       r: radius,
-      vx: Math.cos(AIM_UP) * world.speed,
-      vy: Math.sin(AIM_UP) * world.speed,
+      vx: Math.cos(heading) * world.speed,
+      vy: Math.sin(heading) * world.speed,
       stuck: false,
     },
   ];
+}
+
+function steerSweep(world: BreakerWorld): void {
+  const ball = world.balls.find((item) => !item.stuck);
+  if (!ball) return;
+  const heading = headingForSweep(world, ball.x, ball.y);
+  ball.vx = Math.cos(heading) * world.speed;
+  ball.vy = Math.sin(heading) * world.speed;
 }
 
 /**
@@ -266,15 +299,9 @@ export function beginSweep(world: BreakerWorld): boolean {
   }
   world.balls = [keep];
   keep.stuck = false;
-  const mag = Math.hypot(keep.vx, keep.vy);
-  if (mag > 0.2) {
-    const kept = keepBallSpeed(keep.vx, keep.vy, world.speed);
-    keep.vx = kept.vx;
-    keep.vy = kept.vy;
-  } else {
-    keep.vx = Math.cos(AIM_UP) * world.speed;
-    keep.vy = Math.sin(AIM_UP) * world.speed;
-  }
+  const heading = headingForSweep(world, keep.x, keep.y);
+  keep.vx = Math.cos(heading) * world.speed;
+  keep.vy = Math.sin(heading) * world.speed;
   world.shake = 8;
   return true;
 }
@@ -440,6 +467,7 @@ function burst(world: BreakerWorld, x: number, y: number, color: string): void {
 
 export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
   if (world.paused) return;
+  if (world.cleanup) steerSweep(world);
 
   if (now > world.paddleUntil && world.paddleMode !== "normal") {
     setPaddleMode(world, "normal", now);
