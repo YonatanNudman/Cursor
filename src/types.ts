@@ -1,26 +1,29 @@
-export type Screen = "play" | "result";
+export type Screen = "setup" | "play" | "result";
+
+export const TRIVIA_CATEGORIES = [
+  "Science",
+  "History",
+  "Geography",
+  "Sports",
+  "Movies",
+  "Music",
+  "Food",
+  "Animals",
+  "Tech",
+  "Literature",
+  "Art",
+  "TV",
+  "Space",
+  "Nature",
+  "Myths",
+  "Language",
+  "World",
+  "General",
+] as const;
 
 export type BrickKind = "hp" | "quiz";
 
-export type TriviaCategory =
-  | "Science"
-  | "History"
-  | "Geography"
-  | "Sports"
-  | "Movies"
-  | "Music"
-  | "Food"
-  | "Animals"
-  | "Tech"
-  | "Literature"
-  | "Art"
-  | "TV"
-  | "Space"
-  | "Nature"
-  | "Myths"
-  | "Language"
-  | "World"
-  | "General";
+export type TriviaCategory = (typeof TRIVIA_CATEGORIES)[number];
 
 /** 1 is a warm-up, 2 needs a moment, 3 is for the deep waves. */
 export type Difficulty = 1 | 2 | 3;

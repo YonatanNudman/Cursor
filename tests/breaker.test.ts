@@ -79,6 +79,31 @@ describe("quiz pile-up", () => {
   });
 });
 
+describe("cannon volley", () => {
+  it("fires the magazine then ends the volley without taking a life", () => {
+    const world = createWorld(400, 500, [], 3, 6, 1, { mode: "cannon", magazine: 4 });
+    expect(world.ammoLeft).toBe(4);
+    let ended = 0;
+    attachHooks(world, {
+      onBrickHit: () => undefined,
+      onBallLost: () => undefined,
+      onBoardClear: () => undefined,
+      onVolleyEnd: () => {
+        ended += 1;
+      },
+    });
+    launchBalls(world, -Math.PI / 2);
+    expect(world.volleyActive).toBe(true);
+    expect(world.lives).toBe(3);
+    for (let i = 0; i < 400; i += 1) {
+      stepWorld(world, 0.016, i * 16);
+    }
+    expect(ended).toBe(1);
+    expect(world.lives).toBe(3);
+    expect(world.balls.every((ball) => ball.y < 520)).toBe(true);
+  });
+});
+
 describe("aim and release", () => {
   it("clamps aim into an upward cone and never fires downward", async () => {
     const { clampAim, AIM_UP, AIM_SPREAD } = await import("../src/game/breaker");

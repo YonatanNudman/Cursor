@@ -60,7 +60,13 @@ function pack(id: EffectKind): Effect {
   }
 }
 
-export function pickEffect(correct: boolean, streak: number, ctx: EffectContext, rng: () => number = Math.random): Effect {
+export function pickEffect(
+  correct: boolean,
+  streak: number,
+  ctx: EffectContext,
+  rng: () => number = Math.random,
+  questionDifficulty = 1,
+): Effect {
   const pool: EffectKind[] = correct
     ? ["extraLife", "extraPair", "multiball", "widePaddle", "chipWall"]
     : ["tinyPaddle", "fastBall", "wobblyBall", "armorUp"];
@@ -73,8 +79,12 @@ export function pickEffect(correct: boolean, streak: number, ctx: EffectContext,
   if (correct && !ctx.alreadyFireball) pool.push("fireball");
   if (correct && streak >= 2) pool.push("tripleBall", "extraPair");
   if (correct && streak >= 3) pool.push("ballStorm", "ballStorm");
+  if (correct && questionDifficulty >= 2) pool.push("extraPair", "chipWall", "fireball");
+  if (correct && questionDifficulty >= 3) pool.push("ballStorm", "ballStorm", "tripleBall", "extraPair");
   if (!correct && ctx.bricksAlive > 6) pool.push("dropRow");
   if (!correct && ctx.lives > 1) pool.push("loseLife");
+  if (!correct && questionDifficulty >= 2) pool.push("armorUp", "dropRow");
+  if (!correct && questionDifficulty >= 3) pool.push("loseLife", "dropRow", "armorUp");
   if (!correct && ctx.alreadyWobbly) {
     const filtered = pool.filter((id) => id !== "wobblyBall");
     if (filtered.length) {

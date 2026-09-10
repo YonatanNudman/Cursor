@@ -13,22 +13,45 @@ function memoryStorage() {
 }
 
 describe("settings", () => {
-  it("starts on normal so a first run can actually be lost", () => {
-    expect(defaultSettings()).toEqual({ difficulty: "normal" });
+  it("starts on a losable cannon table", () => {
+    expect(defaultSettings()).toEqual({
+      difficulty: "normal",
+      mode: "cannon",
+      questionFloor: 0,
+      categories: [],
+      cannonAmmo: 30,
+      playSpeed: 1,
+    });
   });
 
-  it("round-trips a chosen difficulty and rejects junk", () => {
+  it("round-trips chosen table options and rejects junk", () => {
     const storage = memoryStorage();
-    writeSettings(storage, { difficulty: "brutal" });
-    expect(readSettings(storage)).toEqual({ difficulty: "brutal" });
-    writeSettings(storage, { difficulty: "bogus" as never });
-    expect(readSettings(storage)).toEqual({ difficulty: "normal" });
+    writeSettings(storage, {
+      difficulty: "brutal",
+      mode: "paddle",
+      questionFloor: 3,
+      categories: ["Science", "Tech"],
+      cannonAmmo: 50,
+      playSpeed: 4,
+    });
+    expect(readSettings(storage)).toEqual({
+      difficulty: "brutal",
+      mode: "paddle",
+      questionFloor: 3,
+      categories: ["Science", "Tech"],
+      cannonAmmo: 50,
+      playSpeed: 4,
+    });
+    writeSettings(storage, { difficulty: "bogus" as never } as never);
+    const next = readSettings(storage);
+    expect(next.difficulty).toBe("normal");
+    expect(next.mode).toBe("cannon");
   });
 
   it("survives a corrupt store", () => {
     const storage = memoryStorage();
     storage.setItem("mindbreaker.settings", "{not json");
-    expect(readSettings(storage)).toEqual({ difficulty: "normal" });
+    expect(readSettings(storage).difficulty).toBe("normal");
   });
 });
 

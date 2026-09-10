@@ -90,8 +90,29 @@ export function aliveBricks(bricks: Brick[]): Brick[] {
   return bricks.filter((brick) => brick.alive);
 }
 
-export function waveSpec(wave: number, width: number, height: number): LevelSpec {
-  const rows = Math.min(9, 5 + Math.floor((wave - 1) / 2));
+export interface WavePressure {
+  maxBrickHp?: number;
+  rowBonus?: number;
+  hpBonus?: number;
+}
+
+/**
+ * The wall has to climb. Named table difficulty adds rows and hit points on
+ * top of the wave ramp, and a hard question floor thickens numbered bricks
+ * so a smart-ass table actually plays harder.
+ */
+export function waveSpec(
+  wave: number,
+  width: number,
+  height: number,
+  pressure: WavePressure = {},
+  questionFloor = 0,
+): LevelSpec {
+  const rowBonus = pressure.rowBonus ?? 0;
+  const hpBonus = pressure.hpBonus ?? 0;
+  const questionBonus = questionFloor >= 3 ? 2 : questionFloor >= 2 ? 1 : 0;
+  const cap = pressure.maxBrickHp ?? 5;
+  const rows = Math.min(10, 5 + Math.floor((wave - 1) / 2) + rowBonus);
   const cols = width < 420 ? 6 : Math.min(10, 7 + Math.floor((wave - 1) / 3));
   return {
     rows,
@@ -100,10 +121,24 @@ export function waveSpec(wave: number, width: number, height: number): LevelSpec
     height,
     padding: 10,
     offsetY: 10,
-    quizRatio: Math.min(0.36, 0.24 + wave * 0.014),
+    quizRatio: Math.min(0.36, 0.22 + wave * 0.012),
     minHp: 1,
-    maxHp: Math.min(5, 1 + Math.ceil(wave / 2)),
+    maxHp: Math.min(cap, 1 + Math.ceil(wave / 2) + hpBonus + questionBonus),
   };
+}
+
+/** Classic cannon step: surviving bricks drop one row. No new bricks. */
+export function descendBricks(bricks: Brick[], dangerY: number): { reachedFloor: boolean } {
+  const sample = aliveBricks(bricks)[0];
+  if (!sample) return { reachedFloor: false };
+  const drop = sample.h + 6;
+  let reachedFloor = false;
+  for (const brick of bricks) {
+    if (!brick.alive) continue;
+    brick.y += drop;
+    if (brick.y + brick.h >= dangerY) reachedFloor = true;
+  }
+  return { reachedFloor };
 }
 
 export function dropRow(bricks: Brick[], width: number, rng: Rng = Math.random): Brick[] {
@@ -137,7 +172,7 @@ export function dropRow(bricks: Brick[], width: number, rng: Rng = Math.random):
 export function armorBricks(bricks: Brick[]): void {
   for (const brick of bricks) {
     if (!brick.alive) continue;
-    brick.hp = Math.min(6, brick.hp + 1);
+    brick.hp = Math.min(8, brick.hp + 1);
     brick.maxHp = Math.max(brick.maxHp, brick.hp);
   }
 }

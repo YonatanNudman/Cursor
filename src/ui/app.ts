@@ -9,11 +9,12 @@ import {
   drawWorld,
   launchBalls,
   movePaddle,
+  restockCannon,
   stepWorld,
   type BreakerWorld,
 } from "../game/breaker";
 import { sound } from "../audio";
-import { aliveBricks, buildLevel, waveSpec } from "../logic/bricks";
+import { aliveBricks, buildLevel, descendBricks, waveSpec } from "../logic/bricks";
 import { pickEffect } from "../logic/effects";
 import { QUIZ_COOLDOWN_MS, canQueueQuiz } from "../logic/quiz-gate";
 import {
@@ -25,21 +26,39 @@ import {
   waveClearBonus,
 } from "../logic/score";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
-import { readSettings, writeSettings, type RunSettings } from "../logic/settings";
 import {
-  allDifficulties,
-  difficulty,
-  type DifficultyName,
-  type DifficultyPreset,
-} from "../logic/difficulty";
+  CANNON_AMMO,
+  PLAY_SPEEDS,
+  QUESTION_FLOORS,
+  floorHint,
+  floorLabel,
+  modeHint,
+  modeLabel,
+  readSettings,
+  toggleCategory,
+  writeSettings,
+  type CannonAmmo,
+  type PlaySpeed,
+  type QuestionFloor,
+  type RunSettings,
+} from "../logic/settings";
+import { allDifficulties, difficulty, type DifficultyPreset } from "../logic/difficulty";
 import {
   createTriviaSession,
   drawQuestion,
+  filterBank,
   gradeAnswer,
   orderedChoices,
   type TriviaSession,
 } from "../logic/trivia";
-import { assertNever, type Effect, type ScoreCard, type Screen, type TriviaQuestion } from "../types";
+import {
+  TRIVIA_CATEGORIES,
+  assertNever,
+  type Effect,
+  type ScoreCard,
+  type Screen,
+  type TriviaQuestion,
+} from "../types";
 import { clear, el } from "./html";
 
 const COACHED_KEY = "mindbreaker.coached";
@@ -53,9 +72,10 @@ const HOSTS = [
 ];
 
 export class App {
-  private screen: Screen = "play";
+  private screen: Screen = "setup";
   private best = readBest(window.localStorage);
   private settings: RunSettings = readSettings(window.localStorage);
+  private playSpeed: PlaySpeed = readSettings(window.localStorage).playSpeed;
   private result: ScoreCard | null = null;
   private stopLoop: (() => void) | null = null;
   private unbind: (() => void) | null = null;
@@ -88,6 +108,9 @@ export class App {
   private render(): void {
     clear(this.root);
     switch (this.screen) {
+      case "setup":
+        this.renderSetup();
+        break;
       case "play":
         this.playRun();
         break;
@@ -103,13 +126,38 @@ export class App {
     return difficulty(this.settings.difficulty);
   }
 
+  private renderSetup(): void {
+    this.root.append(
+      el("div", { class: "screen setup" }, [
+        el("p", { class: "kicker" }, ["Mindbreaker"]),
+        el("h1", { class: "title" }, ["Pick a", el("span", {}, [" table"])]),
+        el("p", { class: "lede" }, [
+          "Cannon fires a magazine, then the wall drops. Paddle keeps the old fight. Harder questions pay more and thicken the numbered bricks.",
+        ]),
+        el("p", { class: "best" }, [
+          formatScore(this.best),
+          el("small", {}, ["Best"]),
+        ]),
+        this.modePicker(),
+        this.levelPicker(),
+        this.floorPicker(),
+        this.ammoPicker(),
+        this.categoryPicker(),
+        el("div", { class: "actions" }, [button("solid cta", "Play", () => this.go("play"))]),
+      ]),
+    );
+  }
+
   private playRun(): void {
     const preset = this.preset();
+    const settings = this.settings;
+    this.playSpeed = settings.playSpeed;
     let wave = 1;
     let score = 0;
     let lives: number = preset.lives;
     let settled = false;
-    const session = createTriviaSession(preferFresh(QUESTIONS, readSeen(window.localStorage)));
+    const bank = filterBank(QUESTIONS, settings.categories, settings.questionFloor);
+    const session = createTriviaSession(preferFresh(bank, readSeen(window.localStorage)));
     const askedThisRun: string[] = [];
     const quizQueue: TriviaQuestion[] = [];
     let asking = false;
@@ -118,6 +166,11 @@ export class App {
     let bricksSinceQuiz = 0;
 
     const hud = this.mountPlay();
+    const paintAmmo = (world: BreakerWorld): void => {
+      if (!hud.ammo) return;
+      hud.ammo.textContent = String(world.ammoLeft);
+    };
+
     const finish = (title: string, detail: string): void => {
       if (settled) return;
       settled = true;
@@ -140,54 +193,78 @@ export class App {
       const frame = hud.board.getBoundingClientRect();
       const width = Math.max(320, Math.floor(frame.width));
       const height = Math.max(360, Math.floor(frame.height));
-      const spec = waveSpec(wave, width, height);
+      const spec = waveSpec(wave, width, height, preset, settings.questionFloor);
+      const wavePush = 0.2 + preset.weight * 0.05;
       const world = attachHooks(
-        createWorld(width, height, buildLevel(spec), lives, (5.4 + wave * 0.3) * preset.ballSpeed, preset.tableBalls),
+        createWorld(
+          width,
+          height,
+          buildLevel(spec),
+          lives,
+          (5.2 + wave * wavePush) * preset.ballSpeed,
+          preset.tableBalls,
+          { mode: settings.mode, magazine: settings.cannonAmmo },
+        ),
         {
-        onBrickHit: (brick, broke) => {
-          if (!broke) {
-            sound.brick();
-            return;
-          }
-          score +=
-            brickPoints(brick.maxHp, brick.kind) *
-            preset.weight *
-            streakMultiplier(session.streak);
-          hud.score.textContent = formatScore(score);
-          bricksSinceQuiz += 1;
-          sound.break();
-          if (brick.kind === "quiz") {
-            const ready = performance.now() >= quizReadyAt;
-            if (canQueueQuiz(asking, quizQueue.length, ready, bricksSinceQuiz)) {
-              const question = drawQuestion(session, wave);
-              if (question) {
-                bricksSinceQuiz = 0;
-                askedThisRun.push(question.id);
-                quizQueue.push(question);
-                maybeAsk(world);
+          onBrickHit: (brick, broke) => {
+            if (!broke) {
+              sound.brick();
+              return;
+            }
+            score +=
+              brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
+            hud.score.textContent = formatScore(score);
+            bricksSinceQuiz += 1;
+            sound.break();
+            if (brick.kind === "quiz") {
+              const ready = performance.now() >= quizReadyAt;
+              if (canQueueQuiz(asking, quizQueue.length, ready, bricksSinceQuiz)) {
+                const question = drawQuestion(session, wave, Math.random, settings.questionFloor);
+                if (question) {
+                  bricksSinceQuiz = 0;
+                  askedThisRun.push(question.id);
+                  quizQueue.push(question);
+                  maybeAsk(world);
+                }
               }
             }
-          }
+          },
+          onBallLost: () => {
+            sound.miss();
+            lives = world.lives;
+            paintBalls(hud.balls, lives);
+            if (world.lives <= 0) {
+              world.paused = true;
+              finish("Out of balls", `You reached wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
+            }
+          },
+          onBoardClear: () => {
+            wavePending = true;
+            if (!asking) finishWave(world);
+          },
+          onVolleyEnd: () => {
+            paintAmmo(world);
+            if (world.cleared || wavePending) {
+              if (!asking) finishWave(world);
+              return;
+            }
+            const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6);
+            if (reachedFloor) {
+              world.paused = true;
+              finish("The wall reached the floor", `Wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
+              return;
+            }
+            restockCannon(world, settings.cannonAmmo);
+            paintAmmo(world);
+          },
         },
-        onBallLost: () => {
-          sound.miss();
-          lives = world.lives;
-          paintBalls(hud.balls, lives);
-          if (world.lives <= 0) {
-            world.paused = true;
-            finish("Out of balls", `You reached wave ${wave}. ${session.correct} right, ${session.missed} wrong.`);
-          }
-        },
-        onBoardClear: () => {
-          wavePending = true;
-          if (!asking) finishWave(world);
-        },
-      });
+      );
       lives = world.lives;
       this.world = world;
       paintBalls(hud.balls, lives);
+      paintAmmo(world);
       hud.wave.textContent = String(wave);
-      this.bindBreaker(hud.canvas, hud.board, world);
+      this.bindBreaker(hud.canvas, hud.board, world, paintAmmo);
     };
 
     const maybeAsk = (world: BreakerWorld): void => {
@@ -203,9 +280,7 @@ export class App {
         const broken = applyEffect(world, effect, performance.now());
         for (const brick of broken) {
           score +=
-            brickPoints(brick.maxHp, brick.kind) *
-            preset.weight *
-            streakMultiplier(session.streak);
+            brickPoints(brick.maxHp, brick.kind) * preset.weight * streakMultiplier(session.streak);
         }
         const gained = score - before;
         lives = world.lives;
@@ -256,9 +331,14 @@ export class App {
     startWave();
 
     if (!localStorage.getItem(COACHED_KEY)) {
+      const cannon = settings.mode === "cannon";
       const hint = el("div", { class: "coach" }, [
-        el("b", {}, ["Hold to aim"]),
-        el("small", {}, ["Release to fire. Then drag to move the paddle."]),
+        el("b", {}, [cannon ? "Hold to aim the cannon" : "Hold to aim"]),
+        el("small", {}, [
+          cannon
+            ? "Release to empty the magazine. Rows drop when the volley ends."
+            : "Release to fire. Then drag to move the paddle.",
+        ]),
       ]);
       hud.board.append(hint);
       const dismiss = (): void => {
@@ -282,38 +362,45 @@ export class App {
     streak: HTMLElement;
     combo: HTMLElement;
     balls: HTMLElement;
+    ammo: HTMLElement | null;
   } {
     const score = el("b", {}, ["0"]);
     const wave = el("b", {}, ["1"]);
     const streak = el("b", {}, ["0"]);
     const combo = el("div", { class: "combo" });
     const balls = el("div", { class: "balls" });
+    const ammo = this.settings.mode === "cannon" ? el("b", {}, [String(this.settings.cannonAmmo)]) : null;
     const canvas = el("canvas");
     const board = el("div", { class: "board" }, [canvas]);
     this.boardHost = board;
+    const hudBits = [
+      el("div", { class: "stat" }, ["Score", score]),
+      el("div", { class: "stat" }, ["Wave", wave]),
+      el("div", { class: "stat" }, ["Streak", streak]),
+    ];
+    if (ammo) hudBits.push(el("div", { class: "stat" }, ["Ammo", ammo]));
+    hudBits.push(combo, balls);
+    const footKids: HTMLElement[] = [
+      el("span", { class: "level-tag" }, [`${modeLabel(this.settings.mode)} · ${this.preset().label}`]),
+    ];
+    if (this.settings.mode === "cannon") {
+      footKids.push(this.speedPicker());
+    }
+    footKids.push(button("ghost tiny", "Pause", () => this.openPause()));
     this.root.append(
       el("div", { class: "play" }, [
-        el("div", { class: "hud" }, [
-          el("div", { class: "stat" }, ["Score", score]),
-          el("div", { class: "stat" }, ["Wave", wave]),
-          el("div", { class: "stat" }, ["Streak", streak]),
-          combo,
-          balls,
-        ]),
+        el("div", { class: "hud" }, hudBits),
         board,
-        el("div", { class: "foot" }, [
-          el("span", { class: "level-tag" }, [this.preset().label]),
-          button("ghost tiny", "Pause", () => this.openPause()),
-        ]),
+        el("div", { class: "foot" }, footKids),
       ]),
     );
-    return { board, canvas, score, wave, streak, combo, balls };
+    return { board, canvas, score, wave, streak, combo, balls, ammo };
   }
 
   private renderResult(): void {
     const card = this.result;
     if (!card) {
-      this.go("play");
+      this.go("setup");
       return;
     }
     const asked = card.correct + card.missed;
@@ -331,15 +418,45 @@ export class App {
           stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
           stat("Best", formatScore(this.best)),
         ]),
+        this.modePicker(),
         this.levelPicker(),
+        this.floorPicker(),
+        this.ammoPicker(),
         el("div", { class: "actions" }, [
           button("solid cta", "Play again", () => this.go("play")),
+          button("ghost", "Change table", () => this.go("setup")),
         ]),
       ]),
     );
   }
 
-  /** Difficulty lives where you actually choose it: after a loss, and on pause. */
+  private modePicker(): HTMLElement {
+    const row = el("div", { class: "levels modes" });
+    const paint = (): void => {
+      clear(row);
+      for (const mode of ["cannon", "paddle"] as const) {
+        const on = mode === this.settings.mode;
+        const chip = button(on ? "level on" : "level", "", () => {
+          this.patchSettings({ mode });
+          paint();
+          this.refreshSetupExtras();
+        });
+        chip.append(el("b", {}, [modeLabel(mode)]), el("small", {}, [modeHint(mode)]));
+        row.append(chip);
+      }
+    };
+    paint();
+    return row;
+  }
+
+  private refreshSetupExtras(): void {
+    if (this.screen !== "setup" && this.screen !== "result") return;
+    const ammo = this.root.querySelector(".ammo-picker");
+    if (ammo instanceof HTMLElement) {
+      ammo.style.display = this.settings.mode === "cannon" ? "" : "none";
+    }
+  }
+
   private levelPicker(): HTMLElement {
     const row = el("div", { class: "levels" });
     const paint = (): void => {
@@ -358,6 +475,62 @@ export class App {
     return row;
   }
 
+  private floorPicker(): HTMLElement {
+    const row = el("div", { class: "levels floors" });
+    const paint = (): void => {
+      clear(row);
+      for (const floor of QUESTION_FLOORS) {
+        const on = floor === this.settings.questionFloor;
+        const chip = button(on ? "level on" : "level", "", () => {
+          this.patchSettings({ questionFloor: floor });
+          paint();
+        });
+        chip.append(el("b", {}, [floorLabel(floor)]), el("small", {}, [floorHint(floor)]));
+        row.append(chip);
+      }
+    };
+    paint();
+    return el("div", { class: "picker-block" }, [el("span", { class: "picker-label" }, ["Questions"]), row]);
+  }
+
+  private ammoPicker(): HTMLElement {
+    const wrap = this.picker("Cannon magazine", CANNON_AMMO, this.settings.cannonAmmo, (value: CannonAmmo) => {
+      this.patchSettings({ cannonAmmo: value });
+    }, (value) => `${value}`);
+    wrap.classList.add("ammo-picker");
+    if (this.settings.mode !== "cannon") wrap.style.display = "none";
+    return wrap;
+  }
+
+  private categoryPicker(): HTMLElement {
+    const row = el("div", { class: "chips cats" });
+    const paint = (): void => {
+      clear(row);
+      const all = button(this.settings.categories.length === 0 ? "chip on" : "chip", "All", () => {
+        this.patchSettings({ categories: [] });
+        paint();
+      });
+      row.append(all);
+      for (const category of TRIVIA_CATEGORIES) {
+        const on = this.settings.categories.includes(category);
+        const chip = button(on ? "chip on" : "chip", category, () => {
+          this.patchSettings({ categories: toggleCategory(this.settings.categories, category) });
+          paint();
+        });
+        row.append(chip);
+      }
+    };
+    paint();
+    return el("div", { class: "picker-block" }, [el("span", { class: "picker-label" }, ["Categories"]), row]);
+  }
+
+  private speedPicker(): HTMLElement {
+    return this.picker("Speed", PLAY_SPEEDS, this.playSpeed, (value: PlaySpeed) => {
+      this.playSpeed = value;
+      this.patchSettings({ playSpeed: value });
+    }, (value) => `${value}×`);
+  }
+
   private openPause(): void {
     const world = this.world;
     if (!world || this.paused) return;
@@ -372,14 +545,23 @@ export class App {
     overlay.append(
       el("div", { class: "panel" }, [
         el("h3", {}, ["Paused"]),
+        this.modePicker(),
         this.levelPicker(),
-        el("p", { class: "note" }, ["Changing the level starts a fresh run."]),
+        this.floorPicker(),
+        this.ammoPicker(),
+        this.speedPicker(),
+        el("p", { class: "note" }, ["Changing the table starts a fresh run. Speed applies now."]),
         el("div", { class: "actions" }, [
           button("solid", "Resume", close),
           button("ghost", "Restart", () => {
             overlay.remove();
             this.paused = false;
             this.go("play");
+          }),
+          button("ghost", "Table", () => {
+            overlay.remove();
+            this.paused = false;
+            this.go("setup");
           }),
         ]),
       ]),
@@ -389,6 +571,7 @@ export class App {
 
   private patchSettings(partial: Partial<RunSettings>): void {
     this.settings = writeSettings(window.localStorage, { ...this.settings, ...partial });
+    if (partial.playSpeed) this.playSpeed = partial.playSpeed;
   }
 
   private picker<T extends number>(
@@ -420,6 +603,7 @@ export class App {
     canvas: HTMLCanvasElement,
     board: HTMLElement,
     world: BreakerWorld,
+    onAmmo?: (world: BreakerWorld) => void,
   ): void {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -453,10 +637,8 @@ export class App {
       pointerId = null;
     };
 
-    // Two gestures on one surface, decided by whether a ball is waiting. Holding
-    // with a ball on the paddle draws a shot and releasing fires it; once the
-    // ball is loose the same drag steers the paddle.
     let aiming = false;
+    const canSteer = (): boolean => world.mode === "paddle" || !world.volleyActive;
 
     const onMove = (event: PointerEvent): void => {
       if (world.paused) {
@@ -468,7 +650,7 @@ export class App {
         aimAt(world, pointX(event), pointY(event));
         return;
       }
-      movePaddle(world, pointX(event));
+      if (canSteer()) movePaddle(world, pointX(event));
     };
 
     const onDown = (event: PointerEvent): void => {
@@ -482,18 +664,18 @@ export class App {
         aimAt(world, pointX(event), pointY(event));
         return;
       }
-      movePaddle(world, pointX(event));
+      if (canSteer()) movePaddle(world, pointX(event));
     };
 
     const onUp = (): void => {
       if (aiming) {
         aiming = false;
         if (world.aim === null) {
-          // A tap with no drag still fires, straight up.
           launchBalls(world, AIM_UP);
         } else {
           launchBalls(world);
         }
+        onAmmo?.(world);
         sound.resume();
       }
       release();
@@ -510,9 +692,12 @@ export class App {
       if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
         launchBalls(world);
+        onAmmo?.(world);
       }
-      if (event.key === "ArrowLeft") movePaddle(world, world.paddle.x + world.paddle.w / 2 - 32);
-      if (event.key === "ArrowRight") movePaddle(world, world.paddle.x + world.paddle.w / 2 + 32);
+      if (world.mode === "paddle") {
+        if (event.key === "ArrowLeft") movePaddle(world, world.paddle.x + world.paddle.w / 2 - 32);
+        if (event.key === "ArrowRight") movePaddle(world, world.paddle.x + world.paddle.w / 2 + 32);
+      }
     };
 
     canvas.addEventListener("pointermove", onMove, { passive: false });
@@ -526,15 +711,17 @@ export class App {
     let raf = 0;
     const tick = (now: number): void => {
       if (world.paused) release();
-      // Real time. Difficulty changes how fast the ball is, not how fast the
-      // clock runs, so physics stays stable at every level.
       const frame = Math.min(0.033, (now - last) / 1000);
       last = now;
-      const steps = Math.max(1, Math.ceil(frame / 0.016));
-      const slice = frame / steps;
+      const flying = world.volleyActive || world.balls.some((ball) => !ball.stuck);
+      const clock = flying ? this.playSpeed : 1;
+      const scaled = frame * clock;
+      const steps = Math.max(1, Math.ceil(scaled / 0.016));
+      const slice = scaled / steps;
       for (let i = 0; i < steps; i += 1) {
         stepWorld(world, slice, now);
       }
+      if (world.mode === "cannon") onAmmo?.(world);
       drawWorld(ctx, world, now);
       raf = requestAnimationFrame(tick);
     };
@@ -583,13 +770,9 @@ function paintCombo(node: HTMLElement, streak: number): void {
     return;
   }
   node.className = `combo on tier-${multiplier}`;
-  node.append(
-    el("b", {}, [`\u00d7${multiplier}`]),
-    el("small", {}, [streakLabel(streak)]),
-  );
+  node.append(el("b", {}, [`\u00d7${multiplier}`]), el("small", {}, [streakLabel(streak)]));
 }
 
-/** A number that leaps off the board and fades. Pure reward, no information. */
 function floatPoints(host: HTMLElement, text: string, tone: "good" | "bad"): void {
   const pop = el("div", { class: `pop ${tone}` }, [text]);
   host.append(pop);
@@ -638,8 +821,6 @@ function showQuiz(
     window.clearInterval(timer);
     const result = gradeAnswer(session, { ...question, answer: drawn.answer }, choice);
     if (btn) btn.classList.add(result.correct ? "good" : "bad");
-    // Always show which one was right. Being punished without being told the
-    // answer is the least satisfying way to lose a question.
     if (!result.correct) {
       buttons[drawn.answer]?.classList.add("reveal");
     }
@@ -647,13 +828,19 @@ function showQuiz(
     if (result.correct) sound.correct();
     else sound.wrong();
     const now = performance.now();
-    const effect = pickEffect(result.correct, result.streak, {
-      lives: world.lives,
-      bricksAlive: aliveBricks(world.bricks).length,
-      ballsInPlay: world.balls.length,
-      alreadyWobbly: now < world.wobbleUntil,
-      alreadyFireball: now < world.fireballUntil,
-    });
+    const effect = pickEffect(
+      result.correct,
+      result.streak,
+      {
+        lives: world.lives,
+        bricksAlive: aliveBricks(world.bricks).length,
+        ballsInPlay: world.balls.length,
+        alreadyWobbly: now < world.wobbleUntil,
+        alreadyFireball: now < world.fireballUntil,
+      },
+      Math.random,
+      question.difficulty,
+    );
     window.setTimeout(
       () => {
         overlay.remove();
@@ -663,9 +850,12 @@ function showQuiz(
     );
   };
 
+  const tier = question.difficulty === 3 ? "Brutal" : question.difficulty === 2 ? "Hard" : "Easy";
   overlay.append(
     el("div", { class: "panel" }, [
-      el("p", { class: "meta" }, [`${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}`]),
+      el("p", { class: "meta" }, [
+        `${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}  ·  ${tier}`,
+      ]),
       el("h2", {}, [question.question]),
       el("div", { class: "choices" }, buttons),
       el("div", { class: "timer" }, [bar]),

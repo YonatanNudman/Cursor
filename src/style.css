@@ -167,6 +167,7 @@ button {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .stat {
@@ -406,6 +407,12 @@ canvas {
   flex: 1;
 }
 
+.foot .chip {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 6px 10px;
+}
+
 .rules {
   margin-top: 14px;
 }
@@ -621,6 +628,44 @@ canvas {
 }
 
 /* ---- Difficulty, chosen where it matters ---- */
+
+.setup .title {
+  font-size: clamp(40px, 12vw, 68px);
+}
+
+.setup .lede {
+  max-width: 42ch;
+}
+
+.picker-block {
+  margin-top: 16px;
+}
+
+.floors {
+  grid-template-columns: 1fr 1fr;
+}
+
+.modes {
+  margin-top: 18px;
+}
+
+.cats {
+  margin-top: 6px;
+}
+
+.cats .chip {
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.foot .picker {
+  margin: 0;
+  flex: 1;
+}
+
+.foot .picker-label {
+  display: none;
+}
 
 .levels {
   display: grid;

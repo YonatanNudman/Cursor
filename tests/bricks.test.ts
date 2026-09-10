@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { aliveBricks, armorBricks, buildLevel, dropRow, hitBrick, hpForCell, waveSpec } from "../src/logic/bricks";
+import { aliveBricks, armorBricks, buildLevel, descendBricks, dropRow, hitBrick, hpForCell, waveSpec } from "../src/logic/bricks";
+import { difficulty } from "../src/logic/difficulty";
 
 function cycle(values: number[]): () => number {
   let i = 0;
@@ -82,5 +83,24 @@ describe("waveSpec", () => {
     const hard = waveSpec(8, 390, 640);
     expect(hard.maxHp).toBeGreaterThan(easy.maxHp);
     expect(hard.rows).toBeGreaterThan(easy.rows);
+  });
+
+  it("makes Brutal a thicker wall than Chill on the same wave", () => {
+    const chill = waveSpec(3, 390, 640, difficulty("chill"), 0);
+    const brutal = waveSpec(3, 390, 640, difficulty("brutal"), 3);
+    expect(brutal.rows).toBeGreaterThan(chill.rows);
+    expect(brutal.maxHp).toBeGreaterThan(chill.maxHp);
+  });
+});
+
+describe("descendBricks", () => {
+  it("drops the surviving wall and flags a floor crash", () => {
+    const bricks = buildLevel(waveSpec(1, 390, 640), () => 0.3);
+    const top = Math.min(...bricks.filter((brick) => brick.alive).map((brick) => brick.y));
+    const missed = descendBricks(bricks, 10_000);
+    expect(missed.reachedFloor).toBe(false);
+    expect(Math.min(...bricks.filter((brick) => brick.alive).map((brick) => brick.y))).toBeGreaterThan(top);
+    const crash = descendBricks(bricks, 40);
+    expect(crash.reachedFloor).toBe(true);
   });
 });

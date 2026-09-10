@@ -115,6 +115,7 @@ describe("difficulty by wave", () => {
     const { tiersForWave } = await import("../src/logic/trivia");
     expect(tiersForWave(1)[0]).toBe(1);
     expect(tiersForWave(12)[0]).toBe(3);
+    expect(tiersForWave(1, 3)).toEqual([3]);
   });
 
   it("draws an easy question on wave 1 and a hard one deep in a run", () => {
@@ -123,5 +124,23 @@ describe("difficulty by wave", () => {
     expect(drawQuestion(early, 1, () => 0.3)?.difficulty).toBe(1);
     const late = createTriviaSession(bank, () => 0.3);
     expect(drawQuestion(late, 12, () => 0.3)?.difficulty).toBe(3);
+  });
+
+  it("honours a category filter and a brutal question floor", async () => {
+    const { filterBank, createTriviaSession, drawQuestion } = await import("../src/logic/trivia");
+    const science = filterBank(QUESTIONS, ["Science"], 0);
+    expect(science.every((question) => question.category === "Science")).toBe(true);
+    const brutal = filterBank(QUESTIONS, [], 3);
+    expect(brutal.every((question) => question.difficulty >= 3)).toBe(true);
+    const session = createTriviaSession(brutal, () => 0.2);
+    expect(drawQuestion(session, 1, () => 0.2, 3)?.difficulty).toBe(3);
+  });
+
+  it("pays more for a harder correct answer", () => {
+    const hard: TriviaQuestion = { ...questions[0]!, difficulty: 3 };
+    const session = createTriviaSession([hard], () => 0);
+    const first = drawQuestion(session)!;
+    const good = gradeAnswer(session, { ...first, difficulty: 3 }, first.answer);
+    expect(good.points).toBe(240);
   });
 });

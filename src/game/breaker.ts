@@ -1,4 +1,5 @@
 import { aliveBricks, armorBricks, dropRow, hitBrick } from "../logic/bricks";
+import type { PlayMode } from "../logic/settings";
 import {
   circleRectCollision,
   clamp,
@@ -22,6 +23,7 @@ export interface BreakerHooks {
   onBrickHit: (brick: Brick, broke: boolean) => void;
   onBallLost: () => void;
   onBoardClear: () => void;
+  onVolleyEnd?: () => void;
 }
 
 export type PaddleMode = "normal" | "wide" | "tiny";
@@ -47,6 +49,12 @@ export interface BreakerWorld {
   aim: number | null;
   /** Recent ball positions, newest last, for the comet trail. */
   trail: Array<{ x: number; y: number }>;
+  mode: PlayMode;
+  /** Balls still waiting in the cannon, including the one on the rail. */
+  ammoLeft: number;
+  volleyActive: boolean;
+  volleyAngle: number | null;
+  fireWait: number;
   hooks?: BreakerHooks;
 }
 
@@ -79,17 +87,20 @@ export function createWorld(
   lives: number,
   speed: number,
   tableBalls = 1,
+  options: { mode?: PlayMode; magazine?: number } = {},
 ): BreakerWorld {
-  const paddleW = Math.min(PADDLE.normal, width * 0.34);
+  const mode = options.mode ?? "paddle";
+  const paddleW =
+    mode === "cannon" ? Math.min(56, width * 0.16) : Math.min(PADDLE.normal, width * 0.34);
   const radius = Math.max(7, width * 0.018);
-  const start = Math.max(1, Math.min(3, tableBalls));
+  const start = mode === "cannon" ? 1 : Math.max(1, Math.min(3, tableBalls));
   const balls = Array.from({ length: start }, () => stuckBall(width / 2, height - 40, radius));
   const world: BreakerWorld = {
     width,
     height,
     bricks,
     balls,
-    paddle: { x: width / 2 - paddleW / 2, y: height - 26, w: paddleW, h: 14 },
+    paddle: { x: width / 2 - paddleW / 2, y: height - 26, w: paddleW, h: mode === "cannon" ? 16 : 14 },
     lives: Math.min(MAX_LIVES, lives),
     speed,
     paused: false,
@@ -103,6 +114,11 @@ export function createWorld(
     particles: [],
     aim: null,
     trail: [],
+    mode,
+    ammoLeft: mode === "cannon" ? Math.max(1, options.magazine ?? 30) : 0,
+    volleyActive: false,
+    volleyAngle: null,
+    fireWait: 0,
   };
   placeStuckBalls(world);
   return world;
@@ -175,11 +191,12 @@ export function clearAim(world: BreakerWorld): void {
 export function launchBalls(world: BreakerWorld, angle?: number | null): void {
   const stuck = world.balls.filter((ball) => ball.stuck);
   if (stuck.length === 0) return;
+  if (world.mode === "cannon" && world.volleyActive) return;
   const aimed = angle ?? world.aim;
   const speed = world.speed * (aimed === null || aimed === undefined ? 1 : RELEASE_BOOST);
+  let heading = AIM_UP;
   stuck.forEach((ball, index) => {
     ball.stuck = false;
-    let heading: number;
     if (aimed === null || aimed === undefined) {
       const t = stuck.length === 1 ? 0.5 : index / (stuck.length - 1);
       heading = AIM_UP + (t - 0.5) * Math.PI * 0.72;
@@ -192,14 +209,59 @@ export function launchBalls(world: BreakerWorld, angle?: number | null): void {
     ball.vy = Math.sin(heading) * speed;
   });
   world.aim = null;
+  if (world.mode === "cannon") {
+    world.volleyActive = true;
+    world.volleyAngle = aimed ?? heading;
+    world.ammoLeft = Math.max(0, world.ammoLeft - stuck.length);
+    world.fireWait = 0.055;
+  }
 }
 
-const MAX_LIVE_BALLS = 12;
+export const MAX_PADDLE_BALLS = 12;
+export const MAX_CANNON_BALLS = 56;
+const FIRE_GAP = 0.055;
+
+function liveBallCap(world: BreakerWorld): number {
+  return world.mode === "cannon" ? MAX_CANNON_BALLS : MAX_PADDLE_BALLS;
+}
+
+function fireMagazine(world: BreakerWorld, dt: number): void {
+  if (world.mode !== "cannon" || !world.volleyActive || world.ammoLeft <= 0) return;
+  world.fireWait -= dt;
+  const heading = world.volleyAngle ?? AIM_UP;
+  const speed = world.speed * RELEASE_BOOST;
+  while (world.fireWait <= 0 && world.ammoLeft > 0 && world.balls.length < liveBallCap(world)) {
+    const radius = world.balls[0]?.r ?? 7;
+    world.balls.push({
+      x: world.paddle.x + world.paddle.w / 2,
+      y: world.paddle.y - radius - 1,
+      r: radius,
+      vx: Math.cos(heading) * speed,
+      vy: Math.sin(heading) * speed,
+      stuck: false,
+    });
+    world.ammoLeft -= 1;
+    world.fireWait += FIRE_GAP;
+  }
+}
+
+export function restockCannon(world: BreakerWorld, ammo: number): void {
+  world.ammoLeft = Math.max(1, ammo);
+  world.volleyActive = false;
+  world.volleyAngle = null;
+  world.fireWait = 0;
+  world.aim = null;
+  const radius = world.balls[0]?.r ?? 7;
+  if (!world.balls.some((ball) => ball.stuck)) {
+    world.balls.push(stuckBall(world.paddle.x + world.paddle.w / 2, world.paddle.y - radius - 1, radius));
+  }
+  placeStuckBalls(world);
+}
 
 export function spawnBalls(world: BreakerWorld, count: number): void {
   const source = world.balls.find((ball) => !ball.stuck) ?? world.balls[0];
   if (!source) return;
-  const room = Math.max(0, MAX_LIVE_BALLS - world.balls.length);
+  const room = Math.max(0, liveBallCap(world) - world.balls.length);
   const add = Math.min(count, room);
   for (let i = 0; i < add; i += 1) {
     const t = add === 1 ? 0.5 : i / (add - 1);
@@ -222,6 +284,8 @@ export function spawnBalls(world: BreakerWorld, count: number): void {
  */
 export function colorForBrick(brick: Brick): string {
   if (brick.kind === "quiz") return "#e0a83a";
+  if (brick.hp >= 7) return "#6b1d3a";
+  if (brick.hp >= 6) return "#8a2a42";
   if (brick.hp >= 5) return "#a8414c";
   if (brick.hp >= 4) return "#c26a3c";
   if (brick.hp >= 3) return "#c99a3a";
@@ -372,7 +436,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
     }
 
     const paddleHit = circleRectCollision(ball.x, ball.y, ball.r, world.paddle);
-    if (paddleHit && ball.vy > 0) {
+    if (world.mode !== "cannon" && paddleHit && ball.vy > 0) {
       const bounced = paddleBounce(ball.x, world.paddle.x, world.paddle.w, world.speed);
       ball.vx = bounced.vx;
       ball.vy = bounced.vy;
@@ -402,9 +466,21 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
     }
   }
 
+  fireMagazine(world, dt);
+
   const before = world.balls.length;
   world.balls = world.balls.filter((ball) => ball.y - ball.r < world.height + 12);
-  if (world.balls.length < before && world.balls.length === 0) {
+  if (world.mode === "cannon") {
+    if (
+      world.volleyActive &&
+      world.ammoLeft <= 0 &&
+      world.balls.every((ball) => !ball.stuck) &&
+      world.balls.length === 0
+    ) {
+      world.volleyActive = false;
+      world.hooks?.onVolleyEnd?.();
+    }
+  } else if (world.balls.length < before && world.balls.length === 0) {
     world.lives -= 1;
     if (world.lives > 0) {
       world.balls.push(stuckBall(world.paddle.x + world.paddle.w / 2, world.paddle.y - 8, 7));
