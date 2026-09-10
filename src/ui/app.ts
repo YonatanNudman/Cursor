@@ -148,22 +148,24 @@ export class App {
   private renderSetup(): void {
     this.root.append(
       el("div", { class: "screen setup" }, [
-        el("p", { class: "kicker" }, ["Mindbreaker"]),
-        el("h1", { class: "title" }, ["Pick a", el("span", {}, [" table"])]),
-        el("p", { class: "lede" }, [
-          "Cannon fires a magazine, then the wall drops. Paddle keeps the old fight. Harder questions pay more and thicken the numbered bricks.",
+        el("div", { class: "sheet" }, [
+          el("p", { class: "kicker" }, ["Mindbreaker"]),
+          el("h1", { class: "title" }, ["Pick a", el("span", {}, [" table"])]),
+          el("p", { class: "lede" }, [
+            "Cannon fires a magazine, then the wall drops. Paddle keeps the old fight. Harder questions pay more and thicken the numbered bricks.",
+          ]),
+          el("p", { class: "best" }, [
+            formatScore(this.best),
+            el("small", {}, ["Best"]),
+          ]),
+          this.recordPlaque(),
+          this.modePicker(),
+          this.levelPicker(),
+          this.wavePicker(),
+          this.floorPicker(),
+          this.ammoPicker(),
+          this.categoryPicker(),
         ]),
-        el("p", { class: "best" }, [
-          formatScore(this.best),
-          el("small", {}, ["Best"]),
-        ]),
-        this.recordPlaque(),
-        this.modePicker(),
-        this.levelPicker(),
-        this.wavePicker(),
-        this.floorPicker(),
-        this.ammoPicker(),
-        this.categoryPicker(),
         el("div", { class: "actions" }, [button("solid cta", "Play", () => this.go("play"))]),
       ]),
     );
@@ -479,12 +481,16 @@ export class App {
       this.wavePicker(),
       this.floorPicker(),
       this.ammoPicker(),
-      el("div", { class: "actions" }, [
-        button("solid cta", "Play again", () => this.go("play")),
-        button("ghost", "Change table", () => this.go("setup")),
+    );
+    this.root.append(
+      el("div", { class: "screen result" }, [
+        el("div", { class: "sheet" }, kids),
+        el("div", { class: "actions" }, [
+          button("solid cta", "Play again", () => this.go("play")),
+          button("ghost", "Change table", () => this.go("setup")),
+        ]),
       ]),
     );
-    this.root.append(el("div", { class: "screen result" }, kids));
   }
 
   private async refreshRecord(): Promise<void> {
@@ -697,14 +703,16 @@ export class App {
     };
     overlay.append(
       el("div", { class: "panel" }, [
-        el("h3", {}, ["Paused"]),
-        this.modePicker(),
-        this.levelPicker(),
-        this.wavePicker(),
-        this.floorPicker(),
-        this.ammoPicker(),
-        this.speedPicker(),
-        el("p", { class: "note" }, ["Changing the table starts a fresh run. Speed applies now."]),
+        el("div", { class: "sheet" }, [
+          el("h3", {}, ["Paused"]),
+          this.modePicker(),
+          this.levelPicker(),
+          this.wavePicker(),
+          this.floorPicker(),
+          this.ammoPicker(),
+          this.speedPicker(),
+          el("p", { class: "note" }, ["Changing the table starts a fresh run. Speed applies now."]),
+        ]),
         el("div", { class: "actions" }, [
           button("solid", "Resume", close),
           button("ghost", "Restart", () => {
@@ -1048,12 +1056,14 @@ function showQuiz(
   const tier = question.difficulty === 3 ? "Brutal" : question.difficulty === 2 ? "Hard" : "Easy";
   overlay.append(
     el("div", { class: "panel" }, [
-      el("p", { class: "meta" }, [
-        `${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}  ·  ${tier}`,
+      el("div", { class: "sheet" }, [
+        el("p", { class: "meta" }, [
+          `${HOSTS[Math.floor(Math.random() * HOSTS.length)]}  ·  ${question.category}  ·  ${tier}`,
+        ]),
+        el("h2", {}, [question.question]),
+        el("div", { class: "choices" }, buttons),
+        el("div", { class: "timer" }, [bar]),
       ]),
-      el("h2", {}, [question.question]),
-      el("div", { class: "choices" }, buttons),
-      el("div", { class: "timer" }, [bar]),
     ]),
   );
   host.append(overlay);
