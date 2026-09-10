@@ -26,6 +26,9 @@ repeat an id until it is empty, and recent questions stay out of the next run.
 Answer streaks pay a multiplier that rides along on every brick you break, so a
 hot run visibly snowballs.
 
+The board also drops a random original gag every so often — farts, honks, sad
+trombone, fake airhorn, that kind of thing. Nothing ripped off a reel.
+
 ## Play on your phone
 
 **https://yonatannudman.github.io/Cursor/**
