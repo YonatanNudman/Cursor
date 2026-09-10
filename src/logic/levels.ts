@@ -121,7 +121,7 @@ export function levelPlan(index: number, preset: DifficultyPreset, width = 390):
     ballSpeed: preset.ballSpeed * (1 + (step - 1) * 0.045),
     magazine,
     descent: Math.min(5, 1 + Math.floor((step - 1) / 6)),
-    picks: boss ? 2 : step >= 3 ? 1 : 0,
+    picks: boss ? 2 : 1,
     boss,
   };
 }

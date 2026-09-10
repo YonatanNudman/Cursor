@@ -87,6 +87,12 @@ describe("the ramp", () => {
     expect(boss.picks).toBeGreaterThan(plain.picks);
   });
 
+  it("offers a star brick from the very first level", () => {
+    for (let index = 1; index <= 12; index += 1) {
+      expect(levelPlan(index, normal).picks, `level ${index}`).toBeGreaterThan(0);
+    }
+  });
+
   it("moves the question tier up as the run goes on", () => {
     expect(tierFor(1)).toBe(1);
     expect(tierFor(5)).toBe(2);
