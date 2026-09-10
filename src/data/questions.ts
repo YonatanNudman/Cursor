@@ -3,6 +3,7 @@ import { q } from "./helpers";
 import { MORE_QUESTIONS } from "./more-questions";
 import { PACK_N_QUESTIONS } from "./pack-n";
 import { PACK_P_QUESTIONS } from "./pack-p";
+import { PACK_Q_QUESTIONS } from "./pack-q";
 
 export const QUESTIONS: TriviaQuestion[] = [
   q("sci-1", "Science", "Which particle carries a negative electric charge?", "Electron", "Proton", "Neutron", "Photon", 0),
@@ -727,4 +728,5 @@ export const QUESTIONS: TriviaQuestion[] = [
   ...MORE_QUESTIONS,
   ...PACK_N_QUESTIONS,
   ...PACK_P_QUESTIONS,
+  ...PACK_Q_QUESTIONS,
 ];

@@ -11,27 +11,50 @@ import type { TriviaQuestion } from "../src/types";
  * player presses is not the index the question was written with. These press
  * the button carrying the true answer text and check the board agrees.
  */
-function press(question: TriviaQuestion, label: string): { correct: boolean; stake: Stake } {
+function open(question: TriviaQuestion): { host: HTMLElement; seen: () => { correct: boolean; stake: Stake } | null } {
   const host = document.createElement("div");
   document.body.append(host);
-  let seen: { correct: boolean; stake: Stake } | null = null;
+  let result: { correct: boolean; stake: Stake } | null = null;
   showQuiz(
     host,
     { question, tier: question.difficulty },
     createTriviaSession([question]),
     (correct, stake) => {
-      seen = { correct, stake };
+      result = { correct, stake };
     },
     (fn) => fn(),
   );
+  return { host, seen: () => result };
+}
+
+function press(question: TriviaQuestion, label: string): { correct: boolean; stake: Stake } {
+  const { host, seen } = open(question);
   const buttons = [...host.querySelectorAll<HTMLButtonElement>("button.choice")];
   expect(buttons).toHaveLength(4);
   const target = buttons.find((button) => button.textContent === label);
   expect(target, `no button reads ${label}`).toBeTruthy();
   target!.click();
-  expect(seen).not.toBeNull();
-  return seen!;
+  const result = seen();
+  expect(result).not.toBeNull();
+  return result!;
 }
+
+describe("the question panel", () => {
+  it("names the subject, the tier, and the price on every question", () => {
+    for (const question of [
+      QUESTIONS.find((item) => item.id === "mov-25")!,
+      QUESTIONS.find((item) => item.id === "sci-1")!,
+      QUESTIONS.find((item) => item.id === "spo-23")!,
+    ]) {
+      const { host } = open(question);
+      expect(host.querySelector(".cat-chip")?.textContent, question.id).toBe(question.category);
+      expect(host.querySelector(".tier-badge")?.textContent, question.id).toBeTruthy();
+      expect(host.querySelector(".stake-line")?.textContent, question.id).toMatch(
+        /^\+\d li(fe|ves) \/ -\d if wrong$/,
+      );
+    }
+  });
+});
 
 describe("pressing an answer", () => {
   it("pays out when the pressed button holds the true answer", () => {
