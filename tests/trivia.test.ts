@@ -89,11 +89,11 @@ describe("question bank", () => {
   it("is large, unique, and spread across sections", () => {
     const ids = QUESTIONS.map((question) => question.id);
     expect(new Set(ids).size).toBe(QUESTIONS.length);
-    expect(QUESTIONS.length).toBeGreaterThanOrEqual(1600);
+    expect(QUESTIONS.length).toBeGreaterThanOrEqual(3300);
     const counts = sectionCounts(QUESTIONS);
     expect(Object.keys(counts).length).toBeGreaterThanOrEqual(16);
     for (const [section, count] of Object.entries(counts)) {
-      expect(count, section).toBeGreaterThanOrEqual(16);
+      expect(count, section).toBeGreaterThanOrEqual(90);
     }
     for (const question of QUESTIONS) {
       expect(new Set(question.choices).size).toBe(4);
@@ -108,7 +108,38 @@ describe("question bank", () => {
       expect(inTier.length, `tier ${tier}`).toBeGreaterThanOrEqual(80);
     }
   });
+
+  it("has no two prompts that only reword the same fact", () => {
+    const seen = new Map<string, string>();
+    const collisions: string[] = [];
+    for (const question of QUESTIONS) {
+      const key = factKey(question.question);
+      const earlier = seen.get(key);
+      if (earlier) collisions.push(`${question.id} repeats ${earlier}: ${question.question}`);
+      else seen.set(key, question.id);
+    }
+    expect(collisions).toEqual([]);
+  });
 });
+
+/**
+ * Two prompts asking the same thing rarely match character for character, so
+ * compare them stripped of filler words and word order.
+ */
+const FILLER = new Set(
+  ("a an the of in on at to for from is are was were do does did what which who whom whose" +
+    " how many much and or with by as it its this that these those you your").split(" "),
+);
+
+function factKey(prompt: string): string {
+  return prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word && !FILLER.has(word))
+    .sort()
+    .join(" ");
+}
 
 describe("drawing what the brick promised", () => {
   it("honours the tier a brick advertised", () => {

@@ -1,18 +1,5 @@
-import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
-
-function q(
-  id: string,
-  category: TriviaCategory,
-  question: string,
-  a: string,
-  b: string,
-  c: string,
-  d: string,
-  answer: 0 | 1 | 2 | 3,
-  difficulty: Difficulty = 1,
-): TriviaQuestion {
-  return { id, category, question, choices: [a, b, c, d], answer, difficulty };
-}
+import type { TriviaQuestion } from "../types";
+import { q } from "./helpers";
 
 /** Fresh pack so a long cannon run does not meet the same 680 again. */
 export const MORE_QUESTIONS: TriviaQuestion[] = [
@@ -110,7 +97,7 @@ export const MORE_QUESTIONS: TriviaQuestion[] = [
   q("spo-m17", "Sports", "The Stanley Cup belongs to which sport?", "Soccer", "Ice hockey", "Lacrosse", "Rugby", 1),
   q("spo-m18", "Sports", "How long is an Olympic swimming pool?", "25 meters", "50 meters", "100 meters", "50 yards", 1, 2),
   q("spo-m19", "Sports", "Which country has won the most FIFA men's World Cups?", "Germany", "Italy", "Brazil", "Argentina", 2, 2),
-  q("spo-m20", "Sports", "In volleyball, how many players are on the court for one team?", "5", "6", "7", "8", 1),
+  q("spo-m20", "Sports", "A volleyball team may touch the ball how many times before it must cross?", "2", "3", "4", "5", 1),
   q("spo-m21", "Sports", "The term 'birdie' comes from which sport?", "Badminton", "Golf", "Baseball", "Darts", 1),
   q("spo-m22", "Sports", "A decathlon has how many events?", "8", "10", "12", "5", 1, 2),
   q("spo-m23", "Sports", "Which boxer was nicknamed 'The Greatest' and born Cassius Clay?", "Joe Frazier", "Muhammad Ali", "George Foreman", "Sugar Ray Leonard", 1),
@@ -238,7 +225,7 @@ export const MORE_QUESTIONS: TriviaQuestion[] = [
   q("tec-m20", "Tech", "Wi-Fi is a way to connect devices how?", "With a VGA cable only", "Without a network cable, over radio", "Through a phone landline only", "By Bluetooth audio only", 1),
   q("tec-m21", "Tech", "In programming, a loop does what?", "Deletes the hard drive", "Repeats a block of instructions", "Draws a circle on paper", "Sends an email", 1),
   q("tec-m22", "Tech", "Which protocol is used to send email between servers?", "FTP", "SMTP", "SSH", "ICMP", 1, 3),
-  q("tec-m23", "Tech", "A byte is how many bits?", "4", "8", "16", "32", 1, 2),
+  q("tec-m23", "Tech", "One kilobyte is conventionally treated as how many bytes?", "512", "1000", "1024", "2048", 2, 2),
   q("tec-m24", "Tech", "Linux is an example of what?", "A web browser", "An operating-system kernel / family", "A graphics card", "A search engine", 1, 2),
 
   q("lit-m1", "Literature", "Who wrote Romeo and Juliet?", "Dickens", "Shakespeare", "Austen", "Milton", 1),
@@ -305,7 +292,7 @@ export const MORE_QUESTIONS: TriviaQuestion[] = [
   q("tv-m12", "TV", "Rick and Morty is what kind of show?", "Live-action cop drama", "Animated sci-fi comedy", "Cooking competition", "Period romance", 1),
   q("tv-m13", "TV", "Din Djarin's series The Mandalorian belongs to which franchise?", "Star Trek", "Star Wars", "Marvel", "DC", 1),
   q("tv-m14", "TV", "Logan Roy's media dynasty is the subject of which HBO drama?", "Billions", "Succession", "Industry", "Mad Men", 1, 2),
-  q("tv-m15", "TV", "Seinfeld was famously 'a show about what'?", "Crime", "Nothing", "Sports", "Politics", 1),
+  q("tv-m15", "TV", "Seinfeld was set mainly in which city?", "Boston", "Chicago", "New York", "Philadelphia", 2),
   q("tv-m16", "TV", "Which baking competition is set in a British tent?", "Chopped", "The Great British Bake Off", "MasterChef U.S.", "Hell's Kitchen", 1),
   q("tv-m17", "TV", "The Upside Down appears in which series?", "The Boys", "Stranger Things", "Umbrella Academy", "Dark", 1),
   q("tv-m18", "TV", "Which cop comedy is set in Brooklyn's 99th precinct?", "The Office", "Brooklyn Nine-Nine", "Reno 911", "Psych", 1),

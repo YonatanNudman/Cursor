@@ -1,18 +1,5 @@
-import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
-
-function q(
-  id: string,
-  category: TriviaCategory,
-  question: string,
-  a: string,
-  b: string,
-  c: string,
-  d: string,
-  answer: 0 | 1 | 2 | 3,
-  difficulty: Difficulty = 1,
-): TriviaQuestion {
-  return { id, category, question, choices: [a, b, c, d], answer, difficulty };
-}
+import type { TriviaQuestion } from "../types";
+import { q } from "./helpers";
 
 /** Third pack so a long run still meets new prompts. */
 export const PACK_N_QUESTIONS: TriviaQuestion[] = [

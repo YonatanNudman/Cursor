@@ -1,20 +1,8 @@
-import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
+import type { TriviaQuestion } from "../types";
+import { q } from "./helpers";
 import { MORE_QUESTIONS } from "./more-questions";
 import { PACK_N_QUESTIONS } from "./pack-n";
-
-function q(
-  id: string,
-  category: TriviaCategory,
-  question: string,
-  a: string,
-  b: string,
-  c: string,
-  d: string,
-  answer: 0 | 1 | 2 | 3,
-  difficulty: Difficulty = 1,
-): TriviaQuestion {
-  return { id, category, question, choices: [a, b, c, d], answer, difficulty };
-}
+import { PACK_P_QUESTIONS } from "./pack-p";
 
 export const QUESTIONS: TriviaQuestion[] = [
   q("sci-1", "Science", "Which particle carries a negative electric charge?", "Electron", "Proton", "Neutron", "Photon", 0),
@@ -738,4 +726,5 @@ export const QUESTIONS: TriviaQuestion[] = [
   q("gen-h2", "General", "How many degrees are in the interior angles of a regular octagon, summed?", "720", "1080", "1440", "2160", 1, 3),
   ...MORE_QUESTIONS,
   ...PACK_N_QUESTIONS,
+  ...PACK_P_QUESTIONS,
 ];
