@@ -148,9 +148,9 @@ export class App {
       el("div", { class: "screen setup" }, [
         el("div", { class: "sheet" }, [
           el("p", { class: "kicker" }, ["Mindbreaker"]),
-          el("h1", { class: "title" }, ["Answer or", el("span", {}, [" lose a ball"])]),
+          el("h1", { class: "title" }, ["Answer or", el("span", {}, [" lose a life"])]),
           el("p", { class: "lede" }, [
-            "Coloured bricks are questions. The hue is the subject, the glyph is the price: ? costs one ball, ?? costs two, !? costs three. Star bricks let you choose.",
+            "Coloured bricks are questions. The hue is the subject, the glyph is the stake: ? risks one life, ?? risks two, !? risks three. Star bricks let you pick your fight.",
           ]),
           el("p", { class: "best" }, [formatScore(this.best), el("small", {}, ["Best"])]),
           this.modePicker(),
@@ -239,7 +239,6 @@ export class App {
           buildLevel(specForPlan(plan, width, height)),
           lives,
           5.6 * plan.ballSpeed,
-          1,
           { mode: settings.mode, magazine: plan.magazine },
         ),
         {
@@ -438,7 +437,7 @@ export class App {
       queue.length = 0;
       world.paused = true;
       score += levelBonus(plan, world.lives) * preset.weight;
-      lives = preset.lifePerWave ? Math.min(MAX_LIVES, world.lives + 1) : world.lives;
+      lives = preset.lifePerLevel ? Math.min(MAX_LIVES, world.lives + 1) : world.lives;
       sound.win();
       const cleared = plan;
       level += 1;

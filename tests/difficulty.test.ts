@@ -13,9 +13,9 @@ describe("difficulty", () => {
   });
 
   it("only gives a ball back on the gentlest level, so a run can be lost", () => {
-    expect(difficulty("chill").lifePerWave).toBe(true);
+    expect(difficulty("chill").lifePerLevel).toBe(true);
     for (const name of ["normal", "hard", "brutal"] as const) {
-      expect(difficulty(name).lifePerWave, name).toBe(false);
+      expect(difficulty(name).lifePerLevel, name).toBe(false);
     }
     expect(difficulty("brutal").lives).toBe(1);
   });

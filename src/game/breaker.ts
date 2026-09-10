@@ -84,14 +84,13 @@ export function createWorld(
   bricks: Brick[],
   lives: number,
   speed: number,
-  tableBalls = 1,
-  options: { mode?: PlayMode; magazine?: number } = {},
+  options: { mode?: PlayMode; magazine?: number; startBalls?: number } = {},
 ): BreakerWorld {
   const mode = options.mode ?? "paddle";
   const paddleW =
     mode === "cannon" ? Math.min(56, width * 0.16) : Math.min(PADDLE_W, width * 0.34);
   const radius = Math.max(7, width * 0.018);
-  const start = mode === "cannon" ? 1 : Math.max(1, Math.min(3, tableBalls));
+  const start = mode === "cannon" ? 1 : Math.max(1, Math.min(3, options.startBalls ?? 1));
   const balls = Array.from({ length: start }, () => stuckBall(width / 2, height - 40, radius));
   const world: BreakerWorld = {
     width,

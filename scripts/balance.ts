@@ -52,7 +52,7 @@ function playRun(name: DifficultyName, accuracy: number, rng: () => number): Run
     let cleared = false;
     let breached = false;
     const world = attachHooks(
-      createWorld(WIDTH, HEIGHT, buildLevel(specForPlan(plan, WIDTH, HEIGHT), rng), lives, 5.6 * plan.ballSpeed, 1, {
+      createWorld(WIDTH, HEIGHT, buildLevel(specForPlan(plan, WIDTH, HEIGHT), rng), lives, 5.6 * plan.ballSpeed, {
         mode: "cannon",
         magazine: plan.magazine,
       }),
@@ -105,7 +105,7 @@ function playRun(name: DifficultyName, accuracy: number, rng: () => number): Run
     if (breached) return { level, volleys, answered, reason: "wall reached the floor" };
     if (lives <= 0) return { level, volleys, answered, reason: "ran out of lives" };
     if (!cleared) return { level, volleys, answered, reason: "stalled" };
-    if (preset.lifePerWave) lives = Math.min(MAX_LIVES, lives + 1);
+    if (preset.lifePerLevel) lives = Math.min(MAX_LIVES, lives + 1);
   }
   return { level: MAX_LEVEL, volleys, answered, reason: "survived the probe" };
 }

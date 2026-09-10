@@ -38,8 +38,8 @@ describe("stakes", () => {
   });
 
   it("writes the price on the tin before you answer", () => {
-    expect(tierReward(1)).toBe("+1 ball / -1 if wrong");
-    expect(tierReward(3)).toBe("+3 balls / -3 if wrong");
+    expect(tierReward(1)).toBe("+1 life / -1 if wrong");
+    expect(tierReward(3)).toBe("+3 lives / -3 if wrong");
     expect(TIER_LABELS[3]).toBe("Brutal");
   });
 });
