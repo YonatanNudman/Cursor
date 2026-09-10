@@ -819,7 +819,9 @@ function paintCombo(node: HTMLElement, streak: number): void {
 
 function gagPop(host: HTMLElement | null | undefined, kind: GoofKind | null): void {
   if (!host || !kind) return;
-  floatPoints(host, kind.toUpperCase(), "good");
+  const pop = el("div", { class: "pop gag" }, [kind.toUpperCase()]);
+  host.append(pop);
+  window.setTimeout(() => pop.remove(), 1800);
 }
 
 function floatPoints(host: HTMLElement, text: string, tone: "good" | "bad"): void {

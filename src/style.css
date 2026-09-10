@@ -539,6 +539,15 @@ canvas {
   color: var(--rose);
 }
 
+.pop.gag {
+  top: 36%;
+  font-family: var(--display);
+  font-size: 42px;
+  letter-spacing: 0.04em;
+  color: var(--brass-hot);
+  animation-duration: 1800ms;
+}
+
 @keyframes pop-rise {
   0% {
     opacity: 0;
