@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - cursor/mindbreaker-hybrid-game-b90e
   workflow_dispatch:
 
 # configure-pages needs pages:write to turn Pages on for the repo the first

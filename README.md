@@ -1,32 +1,35 @@
 # Mindbreaker
 
-One game. Hold anywhere to aim, release to fire. The shot leaves faster than a
-tap ever would. Once the ball is loose, drag to move the paddle and keep it
-alive.
+One hybrid: brick-breaker plus trivia, built for a phone.
+
+Pick a table before you play. **Cannon** aims once and empties a magazine of
+10, 20, 30, or 50 balls. When the volley is done the surviving wall drops a row.
+If bricks reach the floor, the run is over. Mid-volley speed goes 1× to 5×.
+**Paddle** is the older fight: hold to aim, release to fire, then drag the bar
+and keep the ball alive.
 
 Pink `?` bricks stop the table and ask a question. A right answer changes the
 board: extra balls, a wider paddle, slow-mo, a fireball, or a chip through the
 wall. A wrong answer makes it meaner, and shows you the answer you missed.
+Harder questions pay more and unlock louder rewards. Pair them with Hard or
+Brutal and the numbered bricks grow extra hit points.
 
-Four levels, picked on the pause panel or after a loss, never before you play.
-Chill hands a ball back each wave. Normal gives you three and no handouts. Hard
-gives two and a faster table. Brutal gives one.
+Four table levels. Chill hands a ball back each cleared wave. Normal gives you
+three and no handouts. Hard starts with a thicker wall. Brutal is one life, fat
+HP, and extra rows from the first wave.
 
-648 questions across eighteen sections, each tagged easy, medium, or hard. Early
-waves ask warm-ups and the deep waves stop being polite. A run will not repeat a
-question until that bank is empty, and recent questions stay out of the next run.
+Pick categories and a question floor, or leave both on auto. The bank will not
+repeat an id until it is empty, and recent questions stay out of the next run.
 
 Answer streaks pay a multiplier that rides along on every brick you break, so a
 hot run visibly snowballs.
-
-Built for a phone, and it opens straight into a live board. There is no menu.
 
 ## Play on your phone
 
 **https://yonatannudman.github.io/Cursor/**
 
-Public, permanent, and no account needed. Every push to `main` rebuilds and
-redeploys it, so the link never changes and never goes stale.
+Public, permanent, and no account needed. Pushes to `main` or this ship branch
+rebuild and redeploy it, so the link never changes.
 
 A mirror that serves the same build straight from the branch, useful if Pages is
 ever mid-deploy:
