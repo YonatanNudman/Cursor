@@ -1,6 +1,6 @@
 const SEEN_KEY = "mindbreaker.seen-ids";
 const BEST_KEY = "mindbreaker.best";
-const MAX_SEEN = 1600;
+const MAX_SEEN = 4000;
 
 export function readSeen(storage: Pick<Storage, "getItem"> | null): string[] {
   if (!storage) return [];

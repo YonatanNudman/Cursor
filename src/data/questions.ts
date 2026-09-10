@@ -1,5 +1,6 @@
 import type { Difficulty, TriviaCategory, TriviaQuestion } from "../types";
 import { MORE_QUESTIONS } from "./more-questions";
+import { PACK_N_QUESTIONS } from "./pack-n";
 
 function q(
   id: string,
@@ -736,4 +737,5 @@ export const QUESTIONS: TriviaQuestion[] = [
   q("gen-h1", "General", "What is the smallest perfect number?", "1", "6", "28", "12", 1, 3),
   q("gen-h2", "General", "How many degrees are in the interior angles of a regular octagon, summed?", "720", "1080", "1440", "2160", 1, 3),
   ...MORE_QUESTIONS,
+  ...PACK_N_QUESTIONS,
 ];
