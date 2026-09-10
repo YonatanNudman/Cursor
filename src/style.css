@@ -151,91 +151,6 @@ button {
   font-size: 10px;
 }
 
-.world-plaque {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid rgba(224, 168, 58, 0.28);
-  background: rgba(224, 168, 58, 0.08);
-  display: grid;
-  gap: 2px;
-}
-
-.world-plaque.held {
-  border-color: rgba(224, 168, 58, 0.5);
-}
-
-.world-plaque small {
-  font-family: var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 10px;
-  color: var(--brass);
-}
-
-.world-plaque .who {
-  font-family: var(--display);
-  font-size: clamp(22px, 7vw, 28px);
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-
-.world-plaque .reach {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--paper-dim);
-}
-
-.claim {
-  margin-top: 14px;
-  display: grid;
-  gap: 8px;
-}
-
-.name-in {
-  width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--paper);
-  font: inherit;
-  font-size: 16px;
-}
-
-.name-in:focus {
-  outline: 2px solid var(--brass);
-  outline-offset: 1px;
-}
-
-.claim-note {
-  margin: 12px 0 0;
-  color: var(--paper-dim);
-  font-size: 15px;
-}
-
-.claim-note.held {
-  color: var(--brass);
-}
-
-.rules {
-  margin-top: 22px;
-  border: 1px solid var(--line);
-  padding: 14px 14px 6px;
-  background: rgba(30, 20, 40, 0.7);
-}
-
-.rules p {
-  margin: 0 0 10px;
-  color: var(--paper-dim);
-  line-height: 1.4;
-}
-
-.rules b {
-  color: var(--paper);
-}
-
 .actions {
   position: relative;
   z-index: 3;
@@ -305,7 +220,7 @@ button {
   text-overflow: ellipsis;
 }
 
-.balls {
+.lives {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
@@ -313,7 +228,7 @@ button {
   flex-shrink: 0;
 }
 
-.ball {
+.life {
   width: 11px;
   height: 11px;
   border-radius: 50%;
@@ -321,7 +236,7 @@ button {
   box-shadow: 0 0 8px rgba(224, 168, 58, 0.45);
 }
 
-.ball.gone {
+.life.gone {
   background: transparent;
   border: 1px solid var(--muted);
   box-shadow: none;
@@ -524,12 +439,6 @@ canvas {
   border-color: var(--paper);
 }
 
-.ball-count {
-  font-family: var(--mono);
-  font-size: 14px;
-  color: var(--brass);
-}
-
 .foot .chips {
   flex: 1;
   flex-wrap: nowrap;
@@ -551,10 +460,6 @@ canvas {
 
 .foot .ghost.tiny {
   white-space: nowrap;
-}
-
-.rules {
-  margin-top: 14px;
 }
 
 .cta {
@@ -674,15 +579,6 @@ canvas {
   color: var(--rose);
 }
 
-.pop.gag {
-  top: 36%;
-  font-family: var(--display);
-  font-size: 42px;
-  letter-spacing: 0.04em;
-  color: var(--brass-hot);
-  animation-duration: 1800ms;
-}
-
 @keyframes pop-rise {
   0% {
     opacity: 0;
@@ -790,22 +686,9 @@ canvas {
   margin-top: 16px;
 }
 
-.floors {
-  grid-template-columns: 1fr 1fr;
-}
-
 .modes {
   margin-top: 18px;
   grid-template-columns: 1fr 1fr;
-}
-
-.cats {
-  margin-top: 6px;
-}
-
-.cats .chip {
-  min-height: 36px;
-  font-size: 12px;
 }
 
 .foot .picker {
@@ -987,8 +870,7 @@ canvas {
 
 @media (max-width: 340px) {
   .modes,
-  .levels,
-  .floors {
+  .levels {
     grid-template-columns: 1fr;
   }
 
@@ -1089,5 +971,159 @@ canvas {
 
   .ghost.tiny {
     min-height: 44px;
+  }
+}
+
+/* ---- The board answers back ---- */
+
+/*
+ * Right and wrong have to land somewhere other than a line of text. The whole
+ * playfield takes a coloured rim: jade when the answer paid out, oxblood when
+ * it cost you. It sits above the canvas and below the overlays.
+ */
+.verdict {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  animation: verdict-wash 600ms ease-out forwards;
+}
+
+.verdict.good {
+  box-shadow: inset 0 0 0 3px var(--jade), inset 0 0 64px rgba(79, 174, 148, 0.45);
+}
+
+.verdict.bad {
+  box-shadow: inset 0 0 0 3px var(--rose), inset 0 0 64px rgba(196, 82, 95, 0.5);
+}
+
+@keyframes verdict-wash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---- What a question is worth, before you answer it ---- */
+
+.quiz-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.cat-chip {
+  --hue: var(--brass);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hue);
+  color: var(--hue);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tier-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(244, 236, 225, 0.1);
+  color: var(--paper-dim);
+}
+
+.tier-badge.tier-2 {
+  background: rgba(224, 168, 58, 0.18);
+  color: var(--brass-hot);
+}
+
+.tier-badge.tier-3 {
+  background: rgba(196, 82, 95, 0.22);
+  color: #ff9aa4;
+}
+
+.stake-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* A brutal question gets a red-lit frame, so the risk reads before the words. */
+.overlay.quiz.tier-3 .panel {
+  box-shadow: 0 0 0 2px rgba(196, 82, 95, 0.55), 0 18px 60px rgba(11, 7, 16, 0.8);
+}
+
+.overlay.quiz.tier-2 .panel {
+  box-shadow: 0 0 0 2px rgba(224, 168, 58, 0.45), 0 18px 60px rgba(11, 7, 16, 0.8);
+}
+
+/* ---- Star brick: choose your subject, then your stake ---- */
+
+.pick-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pick {
+  --hue: var(--brass);
+  display: grid;
+  gap: 2px;
+  min-height: 60px;
+  padding: 10px 14px;
+  text-align: left;
+  border: 1px solid var(--hue);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--paper);
+}
+
+.pick b {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--hue);
+}
+
+.pick small {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--paper-dim);
+}
+
+.pick.tier-1 {
+  --hue: var(--jade);
+}
+
+.pick.tier-2 {
+  --hue: var(--brass-hot);
+}
+
+.pick.tier-3 {
+  --hue: var(--rose);
+}
+
+/* ---- A boss level says so ---- */
+
+.level-tag.boss {
+  color: var(--rose);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verdict {
+    animation-duration: 1ms;
   }
 }
