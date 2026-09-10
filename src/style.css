@@ -1047,12 +1047,27 @@ canvas {
   }
 
   .overlay {
+    place-items: stretch;
     padding: 6px 6px var(--dock);
   }
 
   .panel {
     padding: 10px;
     border-radius: 12px;
+  }
+
+  .panel .sheet {
+    min-height: 88px;
+  }
+
+  .panel .actions {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 8px;
+  }
+
+  .panel .actions .solid,
+  .panel .actions .ghost {
+    min-height: 44px;
   }
 }
 
