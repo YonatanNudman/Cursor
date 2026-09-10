@@ -26,6 +26,16 @@ import {
   streakMultiplier,
   waveClearBonus,
 } from "../logic/score";
+import {
+  beatsRecord,
+  claimWorldRecord,
+  formatHolder,
+  formatReach,
+  hasHolder,
+  loadWorldRecord,
+  readLocalRecord,
+  type WorldRecord,
+} from "../logic/record";
 import { preferFresh, readBest, readSeen, rememberSeen, writeBest } from "../logic/seen";
 import {
   CANNON_AMMO,
@@ -77,6 +87,8 @@ const HOSTS = [
 export class App {
   private screen: Screen = "setup";
   private best = readBest(window.localStorage);
+  private record: WorldRecord = readLocalRecord(window.localStorage);
+  private claimedThisRun = false;
   private settings: RunSettings = readSettings(window.localStorage);
   private playSpeed: PlaySpeed = readSettings(window.localStorage).playSpeed;
   private result: ScoreCard | null = null;
@@ -113,12 +125,14 @@ export class App {
     switch (this.screen) {
       case "setup":
         this.renderSetup();
+        void this.refreshRecord();
         break;
       case "play":
         this.playRun();
         break;
       case "result":
         this.renderResult();
+        void this.refreshRecord();
         break;
       default:
         assertNever(this.screen);
@@ -141,6 +155,7 @@ export class App {
           formatScore(this.best),
           el("small", {}, ["Best"]),
         ]),
+        this.recordPlaque(),
         this.modePicker(),
         this.levelPicker(),
         this.wavePicker(),
@@ -174,6 +189,8 @@ export class App {
       if (!hud.ammo) return;
       hud.ammo.textContent = String(world.ammoLeft);
     };
+
+    this.claimedThisRun = false;
 
     const finish = (title: string, detail: string): void => {
       if (settled) return;
@@ -430,29 +447,131 @@ export class App {
     const asked = card.correct + card.missed;
     const accuracy = asked > 0 ? Math.round((card.correct / asked) * 100) : 0;
     const beat = card.score >= this.best && card.score > 0;
-    this.root.append(
-      el("div", { class: "screen result" }, [
-        el("p", { class: "kicker" }, [beat ? "New best" : "Run over"]),
-        el("h2", {}, [card.title]),
-        el("p", {}, [card.detail]),
-        el("p", { class: "big" }, [formatScore(card.score)]),
-        el("div", { class: "tally" }, [
-          stat("Wave", String(card.wave)),
-          stat("Right", String(card.correct)),
-          stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
-          stat("Best", formatScore(this.best)),
-        ]),
-        this.modePicker(),
-        this.levelPicker(),
-        this.wavePicker(),
-        this.floorPicker(),
-        this.ammoPicker(),
-        el("div", { class: "actions" }, [
-          button("solid cta", "Play again", () => this.go("play")),
-          button("ghost", "Change table", () => this.go("setup")),
-        ]),
+    const worldBeat = beatsRecord(card.score, this.record);
+    const kicker = this.claimedThisRun
+      ? "You hold it"
+      : worldBeat
+        ? "New world record"
+        : beat
+          ? "New best"
+          : "Run over";
+    const kids: HTMLElement[] = [
+      el("p", { class: "kicker" }, [kicker]),
+      el("h2", {}, [card.title]),
+      el("p", {}, [card.detail]),
+      el("p", { class: "big" }, [formatScore(card.score)]),
+      el("div", { class: "tally" }, [
+        stat("Wave", String(card.wave)),
+        stat("Right", String(card.correct)),
+        stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
+        stat("Best", formatScore(this.best)),
+      ]),
+      this.recordPlaque(),
+    ];
+    const claim = this.claimBox(card);
+    if (claim) kids.push(claim);
+    kids.push(
+      this.modePicker(),
+      this.levelPicker(),
+      this.wavePicker(),
+      this.floorPicker(),
+      this.ammoPicker(),
+      el("div", { class: "actions" }, [
+        button("solid cta", "Play again", () => this.go("play")),
+        button("ghost", "Change table", () => this.go("setup")),
       ]),
     );
+    this.root.append(el("div", { class: "screen result" }, kids));
+  }
+
+  private async refreshRecord(): Promise<void> {
+    this.record = await loadWorldRecord(window.localStorage);
+    this.paintRecordPlaques();
+    if (this.screen !== "result" || !this.result || this.claimedThisRun) return;
+    if (beatsRecord(this.result.score, this.record)) return;
+    const stale = this.root.querySelector(".claim");
+    if (!stale) return;
+    stale.replaceWith(
+      el("p", { class: "claim-note" }, [`${formatHolder(this.record)} already holds it.`]),
+    );
+  }
+
+  private paintRecordPlaques(): void {
+    for (const node of this.root.querySelectorAll<HTMLElement>(".world-plaque")) {
+      paintWorldPlaque(node, this.record);
+    }
+  }
+
+  private recordPlaque(): HTMLElement {
+    const node = el("div", { class: "world-plaque" });
+    paintWorldPlaque(node, this.record);
+    return node;
+  }
+
+  private claimBox(card: ScoreCard): HTMLElement | null {
+    if (this.claimedThisRun) {
+      return el("p", { class: "claim-note held" }, ["Your name is on the table."]);
+    }
+    if (!beatsRecord(card.score, this.record)) return null;
+    const box = el("div", { class: "claim" });
+    const input = el("input", {
+      class: "name-in",
+      type: "text",
+      maxlength: "16",
+      placeholder: "Write your name",
+      autocomplete: "nickname",
+      enterkeyhint: "done",
+      spellcheck: "false",
+      "aria-label": "World record name",
+    });
+    const note = el("p", { class: "claim-note" }, ["You passed it. Put your name on the table."]);
+    let busy = false;
+    const submit = async (): Promise<void> => {
+      if (busy) return;
+      busy = true;
+      go.disabled = true;
+      const result = await claimWorldRecord(window.localStorage, {
+        name: input.value,
+        score: card.score,
+        wave: card.wave,
+        correct: card.correct,
+      });
+      this.record = result.record;
+      switch (result.reason) {
+        case "name":
+          note.textContent = "Need a name to claim it.";
+          input.focus();
+          busy = false;
+          go.disabled = false;
+          return;
+        case "beaten":
+          note.textContent = `${formatHolder(result.record)} already holds ${formatScore(result.record.score)}.`;
+          this.paintRecordPlaques();
+          busy = false;
+          go.disabled = false;
+          return;
+        case "ok":
+          this.claimedThisRun = true;
+          this.paintRecordPlaques();
+          box.replaceWith(el("p", { class: "claim-note held" }, ["Your name is on the table."]));
+          const headline = this.root.querySelector(".result .kicker");
+          if (headline) headline.textContent = "You hold it";
+          return;
+        default:
+          assertNever(result.reason);
+      }
+    };
+    const go = button("solid", "Claim the record", () => {
+      void submit();
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void submit();
+      }
+    });
+    box.append(note, input, go);
+    return box;
   }
 
   private modePicker(): HTMLElement {
@@ -782,6 +901,16 @@ export class App {
       window.removeEventListener("resize", scale);
     };
   }
+}
+
+function paintWorldPlaque(node: HTMLElement, record: WorldRecord): void {
+  clear(node);
+  node.className = hasHolder(record) ? "world-plaque held" : "world-plaque";
+  node.append(
+    el("small", {}, ["World record"]),
+    el("b", { class: "who" }, [formatHolder(record)]),
+    el("span", { class: "reach" }, [formatReach(record)]),
+  );
 }
 
 function stat(label: string, value: string): HTMLElement {

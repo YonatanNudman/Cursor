@@ -29,6 +29,9 @@ hot run visibly snowballs.
 The board also drops a random original gag every so often — farts, honks, sad
 trombone, fake airhorn, that kind of thing. Nothing ripped off a reel.
 
+Pass the world record and you get to write your name. The setup and result
+screens show who holds it and how far they got (wave, score, and rights).
+
 ## Play on your phone
 
 **https://yonatannudman.github.io/Cursor/**

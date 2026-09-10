@@ -110,6 +110,73 @@ button {
   font-size: 10px;
 }
 
+.world-plaque {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(224, 168, 58, 0.28);
+  background: rgba(224, 168, 58, 0.08);
+  display: grid;
+  gap: 2px;
+}
+
+.world-plaque.held {
+  border-color: rgba(224, 168, 58, 0.5);
+}
+
+.world-plaque small {
+  font-family: var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--brass);
+}
+
+.world-plaque .who {
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.world-plaque .reach {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--paper-dim);
+}
+
+.claim {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.name-in {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--paper);
+  font: inherit;
+  font-size: 18px;
+}
+
+.name-in:focus {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.claim-note {
+  margin: 12px 0 0;
+  color: var(--paper-dim);
+  font-size: 15px;
+}
+
+.claim-note.held {
+  color: var(--brass);
+}
+
 .rules {
   margin-top: 22px;
   border: 1px solid var(--line);
