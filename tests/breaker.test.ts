@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEffect, attachHooks, createWorld, launchBalls, stepWorld } from "../src/game/breaker";
+import { applyEffect, attachHooks, beginSweep, CLEANUP_SPEED, createWorld, launchBalls, stepWorld } from "../src/game/breaker";
 import type { Brick } from "../src/types";
 
 describe("table balls", () => {
@@ -76,6 +76,33 @@ describe("quiz pile-up", () => {
     stepWorld(world, 0.016, 0);
     expect(hits).toBe(1);
     expect(second.alive).toBe(true);
+  });
+});
+
+describe("question leftover sweep", () => {
+  it("turns the leftover numbers into one fast pierce ball and restocks without a life", () => {
+    const numbered = brick({ id: "n", x: 40, kind: "hp", hp: 3, maxHp: 3 });
+    const world = createWorld(400, 500, [numbered], 2, 6, 1);
+    launchBalls(world, -Math.PI / 2);
+    expect(beginSweep(world)).toBe(true);
+    expect(world.cleanup).toBe(true);
+    expect(world.balls).toHaveLength(1);
+    expect(world.speed).toBeGreaterThanOrEqual(CLEANUP_SPEED);
+    expect(world.fireballUntil).toBe(Number.POSITIVE_INFINITY);
+    const lives = world.lives;
+    world.balls[0]!.y = world.height + 40;
+    stepWorld(world, 0.016, 0);
+    expect(world.lives).toBe(lives);
+    expect(world.balls).toHaveLength(1);
+    expect(world.balls[0]!.stuck).toBe(false);
+  });
+
+  it("will not sweep while a question brick is still up", () => {
+    const numbered = brick({ id: "n", x: 40, kind: "hp" });
+    const quiz = brick({ id: "q", x: 100, kind: "quiz" });
+    const world = createWorld(400, 500, [numbered, quiz], 2, 6, 1);
+    expect(beginSweep(world)).toBe(false);
+    expect(world.cleanup).toBe(false);
   });
 });
 

@@ -55,6 +55,8 @@ export interface BreakerWorld {
   volleyActive: boolean;
   volleyAngle: number | null;
   fireWait: number;
+  /** One fast pierce ball after the last question brick is gone. */
+  cleanup: boolean;
   hooks?: BreakerHooks;
 }
 
@@ -119,6 +121,7 @@ export function createWorld(
     volleyActive: false,
     volleyAngle: null,
     fireWait: 0,
+    cleanup: false,
   };
   placeStuckBalls(world);
   return world;
@@ -225,7 +228,59 @@ function liveBallCap(world: BreakerWorld): number {
   return world.mode === "cannon" ? MAX_CANNON_BALLS : MAX_PADDLE_BALLS;
 }
 
+export const CLEANUP_SPEED = 16;
+
+function restockSweep(world: BreakerWorld): void {
+  const radius = world.balls[0]?.r ?? 7;
+  world.balls = [
+    {
+      x: world.paddle.x + world.paddle.w / 2,
+      y: world.paddle.y - radius - 1,
+      r: radius,
+      vx: Math.cos(AIM_UP) * world.speed,
+      vy: Math.sin(AIM_UP) * world.speed,
+      stuck: false,
+    },
+  ];
+}
+
+/**
+ * The questions are the game. When only numbered leftovers remain, one hot
+ * ball punches through them so the next wave's questions do not wait.
+ */
+export function beginSweep(world: BreakerWorld): boolean {
+  if (world.cleanup || world.cleared) return false;
+  if (!aliveBricks(world.bricks).length) return false;
+  if (world.bricks.some((brick) => brick.alive && brick.kind === "quiz")) return false;
+  world.cleanup = true;
+  world.volleyActive = false;
+  world.ammoLeft = 0;
+  world.aim = null;
+  world.fireballUntil = Number.POSITIVE_INFINITY;
+  world.wobbleUntil = 0;
+  world.speed = Math.max(world.speed, CLEANUP_SPEED);
+  const keep = world.balls.find((ball) => !ball.stuck) ?? world.balls[0];
+  if (!keep) {
+    restockSweep(world);
+    return true;
+  }
+  world.balls = [keep];
+  keep.stuck = false;
+  const mag = Math.hypot(keep.vx, keep.vy);
+  if (mag > 0.2) {
+    const kept = keepBallSpeed(keep.vx, keep.vy, world.speed);
+    keep.vx = kept.vx;
+    keep.vy = kept.vy;
+  } else {
+    keep.vx = Math.cos(AIM_UP) * world.speed;
+    keep.vy = Math.sin(AIM_UP) * world.speed;
+  }
+  world.shake = 8;
+  return true;
+}
+
 function fireMagazine(world: BreakerWorld, dt: number): void {
+  if (world.cleanup) return;
   if (world.mode !== "cannon" || !world.volleyActive || world.ammoLeft <= 0) return;
   world.fireWait -= dt;
   const heading = world.volleyAngle ?? AIM_UP;
@@ -436,7 +491,7 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
     }
 
     const paddleHit = circleRectCollision(ball.x, ball.y, ball.r, world.paddle);
-    if (world.mode !== "cannon" && paddleHit && ball.vy > 0) {
+    if (world.mode !== "cannon" && !world.cleanup && paddleHit && ball.vy > 0) {
       const bounced = paddleBounce(ball.x, world.paddle.x, world.paddle.w, world.speed);
       ball.vx = bounced.vx;
       ball.vy = bounced.vy;
@@ -470,7 +525,9 @@ export function stepWorld(world: BreakerWorld, dt: number, now: number): void {
 
   const before = world.balls.length;
   world.balls = world.balls.filter((ball) => ball.y - ball.r < world.height + 12);
-  if (world.mode === "cannon") {
+  if (world.cleanup) {
+    if (world.balls.length === 0) restockSweep(world);
+  } else if (world.mode === "cannon") {
     if (
       world.volleyActive &&
       world.ammoLeft <= 0 &&

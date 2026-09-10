@@ -5,6 +5,8 @@ One hybrid: brick-breaker plus trivia, built for a phone.
 Pick a table before you play. **Cannon** aims once and empties a magazine of
 10, 20, 30, or 50 balls. When the volley is done the surviving wall drops a row.
 If bricks reach the floor, the run is over. Mid-volley speed goes 1× to 5×.
+When the last `?` brick is gone, one fast pierce ball burns the leftover
+numbers so the next wave's questions do not wait.
 **Paddle** is the older fight: hold to aim, release to fire, then drag the bar
 and keep the ball alive.
 

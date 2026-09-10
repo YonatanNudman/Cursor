@@ -4,6 +4,7 @@ import {
   aimAt,
   applyEffect,
   attachHooks,
+  beginSweep,
   clearAim,
   createWorld,
   drawWorld,
@@ -14,7 +15,7 @@ import {
   type BreakerWorld,
 } from "../game/breaker";
 import { sound } from "../audio";
-import { aliveBricks, buildLevel, descendBricks, waveSpec } from "../logic/bricks";
+import { aliveBricks, buildLevel, descendBricks, onlyNumbersLeft, waveSpec } from "../logic/bricks";
 import { pickEffect } from "../logic/effects";
 import { QUIZ_COOLDOWN_MS, canQueueQuiz } from "../logic/quiz-gate";
 import {
@@ -228,6 +229,7 @@ export class App {
                 }
               }
             }
+            trySweep(world);
           },
           onBallLost: () => {
             sound.miss();
@@ -248,6 +250,7 @@ export class App {
               if (!asking) finishWave(world);
               return;
             }
+            if (trySweep(world)) return;
             const { reachedFloor } = descendBricks(world.bricks, world.paddle.y - 6);
             world.shake = 10;
             floatPoints(hud.board, "WALL DROPS", "bad");
@@ -309,10 +312,20 @@ export class App {
             return;
           }
           if (!this.paused) world.paused = false;
+          if (trySweep(world)) return;
           maybeAsk(world);
         });
         void correct;
       });
+    };
+
+    const trySweep = (world: BreakerWorld): boolean => {
+      if (asking || this.paused || world.cleared || wavePending) return false;
+      if (!onlyNumbersLeft(world.bricks)) return false;
+      if (!beginSweep(world)) return false;
+      paintAmmo(world);
+      floatPoints(hud.board, "BURN THE REST", "good");
+      return true;
     };
 
     const finishWave = (world: BreakerWorld): void => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aliveBricks, armorBricks, buildLevel, descendBricks, dropRow, hitBrick, hpForCell, waveSpec } from "../src/logic/bricks";
+import { aliveBricks, armorBricks, buildLevel, descendBricks, dropRow, hitBrick, hpForCell, onlyNumbersLeft, waveSpec } from "../src/logic/bricks";
 import { difficulty } from "../src/logic/difficulty";
 
 function cycle(values: number[]): () => number {
@@ -90,6 +90,18 @@ describe("waveSpec", () => {
     const brutal = waveSpec(3, 390, 640, difficulty("brutal"), 3);
     expect(brutal.rows).toBeGreaterThan(chill.rows);
     expect(brutal.maxHp).toBeGreaterThan(chill.maxHp);
+  });
+});
+
+describe("onlyNumbersLeft", () => {
+  it("is false while a question brick is still standing", () => {
+    const bricks = [
+      { id: "n", x: 0, y: 0, w: 10, h: 10, hp: 2, maxHp: 2, kind: "hp" as const, alive: true },
+      { id: "q", x: 20, y: 0, w: 10, h: 10, hp: 1, maxHp: 1, kind: "quiz" as const, alive: true },
+    ];
+    expect(onlyNumbersLeft(bricks)).toBe(false);
+    bricks[1]!.alive = false;
+    expect(onlyNumbersLeft(bricks)).toBe(true);
   });
 });
 

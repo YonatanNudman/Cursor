@@ -90,6 +90,12 @@ export function aliveBricks(bricks: Brick[]): Brick[] {
   return bricks.filter((brick) => brick.alive);
 }
 
+/** True when the questions are gone and only numbered leftovers remain. */
+export function onlyNumbersLeft(bricks: Brick[]): boolean {
+  const alive = aliveBricks(bricks);
+  return alive.length > 0 && alive.every((brick) => brick.kind === "hp");
+}
+
 export interface WavePressure {
   maxBrickHp?: number;
   rowBonus?: number;
