@@ -1,4 +1,3 @@
-import { QUESTIONS } from "../data/questions";
 import {
   AIM_UP,
   MAX_LIVES,
@@ -47,6 +46,14 @@ import { clear, el } from "./html";
 
 const COACHED_KEY = "mindbreaker.coached";
 
+let bank: Promise<TriviaQuestion[]> | null = null;
+
+/** Thousands of questions are a long download on a phone, so they arrive in their own chunk. */
+function loadBank(): Promise<TriviaQuestion[]> {
+  bank ??= import("../data/questions").then((module) => module.QUESTIONS);
+  return bank;
+}
+
 /** A question in the queue, with the promise its brick made about it. */
 export interface Pending {
   question: TriviaQuestion;
@@ -70,6 +77,9 @@ export class App {
   private quizCancel: (() => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
+    // The bank is most of the download and the setup screen never reads it,
+    // so fetch it alongside the first paint rather than ahead of it.
+    void loadBank();
     this.render();
   }
 
@@ -129,7 +139,9 @@ export class App {
         this.renderSetup();
         break;
       case "play":
-        this.playRun();
+        void loadBank().then((bank) => {
+          if (this.screen === "play") this.playRun(bank);
+        });
         break;
       case "result":
         this.renderResult();
@@ -161,7 +173,7 @@ export class App {
     );
   }
 
-  private playRun(): void {
+  private playRun(bank: TriviaQuestion[]): void {
     const preset = this.preset();
     const settings = this.settings;
     this.playSpeed = settings.playSpeed;
@@ -170,7 +182,7 @@ export class App {
     let score = 0;
     let lives: number = preset.lives;
     let settled = false;
-    const session = createTriviaSession(preferFresh(QUESTIONS, readSeen(window.localStorage)));
+    const session = createTriviaSession(preferFresh(bank, readSeen(window.localStorage)));
     const askedThisRun: string[] = [];
     const queue: Pending[] = [];
     let recentPicks: TriviaCategory[] = [];
