@@ -135,6 +135,32 @@ button {
   gap: 12px;
 }
 
+.setup .sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Whatever height is left over belongs between the copy and the cards, not
+ * under them. The cards then sit with the button you press after them instead
+ * of stranding a hole above it, and a tall phone reads as deliberate rather
+ * than as a screen that ran out of things to say.
+ */
+.setup .pickers {
+  margin-top: auto;
+}
+
+.result .sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Same bargain on the result card: the score and the tally keep company with
+   Play again rather than floating above a gap. */
+.result .verdict-score {
+  margin-top: auto;
+}
+
 .brandline .kicker,
 .brandline .best-inline {
   margin: 0;
@@ -938,43 +964,12 @@ canvas {
 }
 
 /*
- * Below this the four difficulty cards and their descriptions stop fitting on
- * top of the copy, and the setup screen is the one screen a player must read
- * before they can start. Tighten the type rather than make them hunt for the
- * bottom of a scroll.
+ * A result card and a question both carry more than the setup screen does, so
+ * they run out of room first and tighten first. Reading a question is the whole
+ * game, and hunting for the bottom of a scroll to find the fourth answer is
+ * not reading it.
  */
 @media (max-height: 620px) {
-  .setup .title,
-  .title {
-    font-size: clamp(28px, 8.5vw, 40px);
-  }
-
-  .lede {
-    font-size: 13.5px;
-    line-height: 1.35;
-    margin-top: 8px;
-  }
-
-  .levels,
-  .picker-block,
-  .modes {
-    margin-top: 8px;
-    gap: 6px;
-  }
-
-  .level {
-    padding: 6px 10px;
-  }
-
-  .level b {
-    font-size: 15px;
-  }
-
-  .level small {
-    font-size: 9.5px;
-    line-height: 1.3;
-  }
-
   .actions {
     padding-top: 8px;
   }
@@ -1023,6 +1018,45 @@ canvas {
   }
 }
 
+/*
+ * Only below this do the four difficulty cards and their descriptions stop
+ * fitting on top of the copy. A 553px phone has room to spare once the best
+ * score shares the wordmark's line, so it keeps the readable type and these
+ * harder cuts wait for the phones that need them.
+ */
+@media (max-height: 540px) {
+  .setup .title,
+  .title {
+    font-size: clamp(28px, 8.5vw, 40px);
+  }
+
+  .lede {
+    font-size: 13.5px;
+    line-height: 1.35;
+    margin-top: 8px;
+  }
+
+  .levels,
+  .picker-block,
+  .modes {
+    margin-top: 8px;
+    gap: 6px;
+  }
+
+  .level {
+    padding: 6px 10px;
+  }
+
+  .level b {
+    font-size: 15px;
+  }
+
+  .level small {
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+}
+
 @media (max-height: 500px) and (orientation: landscape) {
   /*
    * Sideways there is room for about four lines of text and no more, but plenty
@@ -1062,6 +1096,10 @@ canvas {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: 18px;
     align-content: start;
+  }
+
+  .result .verdict-score {
+    margin-top: 0;
   }
 
   .result .big {
