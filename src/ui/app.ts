@@ -70,7 +70,11 @@ export class App {
   private unbind: (() => void) | null = null;
   private world: BreakerWorld | null = null;
   private endRun: ((title: string, detail: string) => void) | null = null;
-  private boardHost: HTMLElement | null = null;
+  /**
+   * Questions and the pause sheet take the whole frame, not just the brick
+   * area. A small phone's board is not tall enough to hold four answers.
+   */
+  private overlayHost: HTMLElement | null = null;
   private paused = false;
   private asking = false;
   private timeouts: number[] = [];
@@ -123,7 +127,7 @@ export class App {
     this.quizCancel = null;
     this.world = null;
     this.endRun = null;
-    this.boardHost = null;
+    this.overlayHost = null;
     this.paused = false;
     this.asking = false;
     this.stopLoop?.();
@@ -159,14 +163,15 @@ export class App {
     this.root.append(
       el("div", { class: "screen setup" }, [
         el("div", { class: "sheet" }, [
-          el("p", { class: "kicker" }, ["Mindbreaker"]),
+          el("div", { class: "brandline" }, [
+            el("p", { class: "kicker" }, ["Mindbreaker"]),
+            el("p", { class: "best-inline" }, [`Best ${formatScore(this.best)}`]),
+          ]),
           el("h1", { class: "title" }, ["Answer or", el("span", {}, [" lose a life"])]),
           el("p", { class: "lede" }, [
-            "Coloured bricks are questions. The hue is the subject, the glyph is the stake: ? risks one life, ?? risks two, !? risks three. Star bricks let you pick your fight.",
+            "Coloured bricks are questions. Hue is the subject, glyph is the stake: ? costs a life, ?? two, !? three. Star bricks let you choose.",
           ]),
-          el("p", { class: "best" }, [formatScore(this.best), el("small", {}, ["Best"])]),
-          this.modePicker(),
-          this.levelPicker(),
+          el("div", { class: "pickers" }, [this.modePicker(), this.levelPicker()]),
         ]),
         el("div", { class: "actions" }, [button("solid cta", "Play", () => this.go("play"))]),
       ]),
@@ -385,7 +390,7 @@ export class App {
         el("p", { class: "note" }, ["Subjects you just played are held back, so the run keeps moving."]),
       );
       overlay.append(el("div", { class: "panel" }, [body]));
-      hud.board.append(overlay);
+      hud.stage.append(overlay);
       sound.letter();
     };
 
@@ -396,7 +401,7 @@ export class App {
       asking = true;
       this.asking = true;
       world.paused = true;
-      this.quizCancel = showQuiz(hud.board, next, session, (correct, stake) => {
+      this.quizCancel = showQuiz(hud.stage, next, session, (correct, stake) => {
         const before = score;
         score += stake.score * preset.weight;
         applyStake(world, stake, { tier: next.tier });
@@ -498,6 +503,7 @@ export class App {
   }
 
   private mountPlay(): {
+    stage: HTMLElement;
     board: HTMLElement;
     canvas: HTMLCanvasElement;
     score: HTMLElement;
@@ -517,7 +523,6 @@ export class App {
     const tag = el("span", { class: "level-tag" }, ["Warm Up"]);
     const canvas = el("canvas");
     const board = el("div", { class: "board" }, [canvas]);
-    this.boardHost = board;
     const hudBits = [
       el("div", { class: "stat" }, ["Score", score]),
       el("div", { class: "stat" }, ["Level", level]),
@@ -525,14 +530,14 @@ export class App {
     ];
     if (ammo) hudBits.push(el("div", { class: "stat" }, ["Shots", ammo]));
     hudBits.push(combo, lives);
-    this.root.append(
-      el("div", { class: "play" }, [
-        el("div", { class: "hud" }, hudBits),
-        board,
-        el("div", { class: "foot" }, [tag, button("ghost tiny", "Pause", () => this.openPause())]),
-      ]),
-    );
-    return { board, canvas, score, level, streak, combo, lives, ammo, tag };
+    const stage = el("div", { class: "play" }, [
+      el("div", { class: "hud" }, hudBits),
+      board,
+      el("div", { class: "foot" }, [tag, button("ghost tiny", "Pause", () => this.openPause())]),
+    ]);
+    this.overlayHost = stage;
+    this.root.append(stage);
+    return { stage, board, canvas, score, level, streak, combo, lives, ammo, tag };
   }
 
   private renderResult(): void {
@@ -547,18 +552,20 @@ export class App {
     this.root.append(
       el("div", { class: "screen result" }, [
         el("div", { class: "sheet" }, [
-          el("p", { class: "kicker" }, [beat ? "New best" : "Run over"]),
-          el("h2", {}, [card.title]),
-          el("p", {}, [card.detail]),
-          el("p", { class: "big" }, [formatScore(card.score)]),
-          el("div", { class: "tally" }, [
-            stat("Level", String(card.wave)),
-            stat("Right", String(card.correct)),
-            stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
-            stat("Best", formatScore(this.best)),
+          el("div", { class: "verdict-copy" }, [
+            el("p", { class: "kicker" }, [beat ? "New best" : "Run over"]),
+            el("h2", {}, [card.title]),
+            el("p", {}, [card.detail]),
           ]),
-          this.modePicker(),
-          this.levelPicker(),
+          el("div", { class: "verdict-score" }, [
+            el("p", { class: "big" }, [formatScore(card.score)]),
+            el("div", { class: "tally" }, [
+              stat("Level", String(card.wave)),
+              stat("Right", String(card.correct)),
+              stat("Accuracy", asked > 0 ? `${accuracy}%` : "--"),
+              stat("Best", formatScore(this.best)),
+            ]),
+          ]),
         ]),
         el("div", { class: "actions" }, [
           button("solid cta", "Play again", () => this.go("play")),
@@ -640,7 +647,7 @@ export class App {
         ]),
       ]),
     );
-    this.boardHost?.append(overlay);
+    this.overlayHost?.append(overlay);
   }
 
   private patchSettings(partial: Partial<RunSettings>): void {
