@@ -89,11 +89,11 @@ describe("question bank", () => {
   it("is large, unique, and spread across sections", () => {
     const ids = QUESTIONS.map((question) => question.id);
     expect(new Set(ids).size).toBe(QUESTIONS.length);
-    expect(QUESTIONS.length).toBeGreaterThanOrEqual(3700);
+    expect(QUESTIONS.length).toBeGreaterThanOrEqual(4100);
     const counts = sectionCounts(QUESTIONS);
     expect(Object.keys(counts).length).toBeGreaterThanOrEqual(16);
     for (const [section, count] of Object.entries(counts)) {
-      expect(count, section).toBeGreaterThanOrEqual(90);
+      expect(count, section).toBeGreaterThanOrEqual(220);
     }
     for (const question of QUESTIONS) {
       expect(new Set(question.choices).size).toBe(4);
